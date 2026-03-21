@@ -1,105 +1,140 @@
-from __future__ import annotations
-from fastapi import Body
 
-from contextlib import asynccontextmanager
-from datetime import UTC, datetime
-from secrets import token_urlsafe
-
-from fastapi import Depends, FastAPI, HTTPException
-from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from sqlmodel import Session, select
-
-from .analysis_engine import analyze_preparation, analyze_debrief, build_final_memo, _calculate_gamification_progress
-from .auth import create_access_token, get_current_user, hash_password, verify_password
-from .db import engine, get_session, init_db, seed_demo_case_for_user
-from .models import (
-    Case,
-    CaseOrigin,
-    CaseStatus,
-    CaseVersion,
-    Cohort,
-    CohortMembership,
-    CohortStatus,
-    LeaderEvaluation,
-    PublicLeadCapture,
-    ExperienceFeedback,
-    User,
-    UserRole,
-)
-from .schemas import (
-    AdminAnonymousMetricsSummary,
-    AdminUserCreate,
-    AdminUserRead,
-    AnalysisOutput,
-    CaseCreate,
-    CaseFromTemplateCreate,
-    CaseListItem,
-    CaseRead,
-    CaseTemplate,
-    CloseCaseInput,
-    CohortCreate,
-    CohortMembershipAdd,
-    CohortRead,
-    CohortUpdate,
-    DebriefInput,
-    FinalCertificationReport,
-    FinalMemo,
-    MetricsTrendPoint,
-    StudentMetricsSummary,
-    StudentGamificationProgress,
-    LeaderEvaluationCreate,
-    LeaderEvaluationRead,
-    LoginInput,
-    DemoStartInput,
-    DemoStartResponse,
-    ExperienceFeedbackInput,
-    ExperienceFeedbackRead,
-    CaseProgressItem,
-    PDFDownloadInput,
-    PilotProgressReport,
-    Protocolo48hInput,
-    PreparationInput,
-    PublicLeadCaptureInput,
-    PublicLeadCaptureResponse,
-    SolicitorAsesoriaInput,
-    TokenResponse,
-    UserProfile,
-)
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from .settings import settings
-from .templates import CASE_TEMPLATES
-from fastapi.responses import JSONResponse, RedirectResponse
-from fastapi.requests import Request
-from fastapi.exception_handlers import RequestValidationError
-from fastapi.exceptions import HTTPException
-import traceback
+
+app = FastAPI()
+
+# CORS for frontend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.frontend_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Static files (optional, if needed for frontend)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# --- Schemas ---
+class PublicLeadCaptureInput(BaseModel):
+    email: str
+    source: str
+    preocupacion_negociacion: str = ""
+
+class PublicLeadCaptureResponse(BaseModel):
+    ok: bool
+    message: str
+
+class SolicitorAsesoriaInput(BaseModel):
+    email: str
+    nombre: str
+    tamaño_equipo: str
+    preocupacion: str
+
+class Protocolo48hInput(BaseModel):
+    email: str
+
+class PDFDownloadInput(BaseModel):
+    email: str
+    name: str
+    pdf_name: str
+
+# --- Endpoints ---
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok", "message": "API is running"}
+
+@app.post("/api/public/leads/contact", response_model=PublicLeadCaptureResponse)
+def capture_public_lead(payload: PublicLeadCaptureInput):
+    email = payload.email.strip().lower()
+    try:
+        from .brevo_engine import upsert_contact_in_brevo
+        upsert_contact_in_brevo(
+            email,
+            payload.preocupacion_negociacion.strip(),
+            payload.source
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail=f"No se pudo enviar el lead a Brevo: {exc}")
+    return PublicLeadCaptureResponse(
+        ok=True,
+        message="Protocolo de contacto iniciado. Recibirá un correo con los próximos pasos",
+    )
+
+@app.post("/api/public/solicitar-asesoria", response_model=PublicLeadCaptureResponse)
+def solicitar_asesoria(payload: SolicitorAsesoriaInput):
+    email = payload.email.strip().lower()
+    try:
+        from .brevo_engine import upsert_contact_in_brevo
+        upsert_contact_in_brevo(
+            email,
+            f"Asesoría solicitada - Equipo: {payload.tamaño_equipo} - {payload.preocupacion}",
+            "solicitar_asesoria"
+        )
+    except RuntimeError as exc:
+        print(f"⚠️ No se pudo enviar solicitud de asesoría a Brevo ({email}): {exc}")
+    return PublicLeadCaptureResponse(
+        ok=True,
+        message="Solicitud de asesoría registrada. Te contactaremos pronto con los próximos pasos",
+    )
+
+@app.post("/api/public/protocolo-48h", response_model=PublicLeadCaptureResponse)
+def protocolo_48h(payload: Protocolo48hInput):
+    email = payload.email.strip().lower()
+    try:
+        from .brevo_engine import upsert_contact_in_brevo
+        upsert_contact_in_brevo(
+            email,
+            "Interés en sesión de asesoramiento en 48 horas",
+            "protocolo_48h"
+        )
+    except RuntimeError as exc:
+        print(f"⚠️ No se pudo enviar lead de asesoramiento 48h a Brevo ({email}): {exc}")
+    return PublicLeadCaptureResponse(
+        ok=True,
+        message="Solicitud recibida. En breve nos comunicaremos para agendar su sesión de asesoramiento.",
+    )
+
+@app.post("/api/public/pdf-download", response_model=PublicLeadCaptureResponse)
+def pdf_download(payload: PDFDownloadInput):
+    email = payload.email.strip().lower()
+    name = payload.name.strip()
+    pdf_name = payload.pdf_name.strip()
+    pdf_urls = {
+        "si_te_calentas_perdes": "https://rodrigoborgia.com/pdfs/si-te-calentas-perdes.pdf",
+    }
+    pdf_url = pdf_urls.get(pdf_name)
+    if not pdf_url:
+        raise HTTPException(status_code=404, detail="PDF no encontrado")
+    try:
+        from .brevo_engine import send_pdf_email, upsert_contact_in_brevo
+        send_pdf_email(
+            user_email=email,
+            user_name=name,
+            pdf_name=pdf_name,
+            pdf_url=pdf_url
+        )
+        upsert_contact_in_brevo(
+            email,
+            f"Lead Magnet: {pdf_name}",
+            "pdf_download"
+        )
+    except RuntimeError as exc:
+        print(f"⚠️ No se pudo enviar PDF por email ({email}): {exc}")
+    return PublicLeadCaptureResponse(
+        ok=True,
+        message="PDF enviado a tu email. Revisá tu bandeja de entrada.",
+    )
 
 
 def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def _bootstrap_admin() -> None:
-    init_db()
-    with Session(engine) as session:
-        statement = select(User).where(User.email == settings.bootstrap_admin_email)
-        existing_admin = session.exec(statement).first()
-        if not existing_admin:
-            admin = User(
-                email=settings.bootstrap_admin_email,
-                password_hash=hash_password(settings.bootstrap_admin_password),
-                full_name=settings.bootstrap_admin_full_name,
-                role=UserRole.ADMIN,
-                is_active=True,
-            )
-            session.add(admin)
-            session.commit()
-
-
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    _bootstrap_admin()
-    yield
 
 
 
@@ -184,20 +219,10 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-def _save_version(session: Session, case_id: int, event: str, payload: dict) -> None:
-    session.add(CaseVersion(case_id=case_id, event=event, payload=payload))
 
 
-def _get_case_or_404(session: Session, case_id: int) -> Case:
-    case = session.get(Case, case_id)
-    if not case:
-        raise HTTPException(status_code=404, detail="Caso no encontrado")
-    return case
 
 
-def _require_admin(current_user: User) -> None:
-    if current_user.role != UserRole.ADMIN:
-        raise HTTPException(status_code=403, detail="Solo administrador")
 
 
 def _is_valid_period_label(value: str) -> bool:
@@ -209,400 +234,9 @@ def _is_valid_period_label(value: str) -> bool:
     except ValueError:
         return False
 
-
-def _resolve_user_access(session: Session, user: User) -> dict:
-    if user.role == UserRole.ADMIN:
-        return {
-            "effective_mode": "sparring",
-            "can_access_live_session": True,
-            "can_access_sparring": True,
-            "active_cohort_id": None,
-            "active_cohort_name": None,
-        }
-
-    now = _utc_now()
-    # Buscar membresía activa en cohorte activa (modo clase)
-    statement_active = (
-        select(CohortMembership, Cohort)
-        .join(Cohort, CohortMembership.cohort_id == Cohort.id)
-        .where(CohortMembership.user_id == user.id)
-        .where(CohortMembership.is_active == True)
-        .where(Cohort.status == CohortStatus.ACTIVE)
-        .where(Cohort.start_date <= now)
-        .where(Cohort.end_date >= now)
-        .order_by(Cohort.start_date.desc())
-    )
-    active = session.exec(statement_active).first()
-    if active:
-        membership, cohort = active
-        # Si la membresía tiene fecha de vencimiento y está vencida, marcar como inactiva
-        if membership.expiry_date and membership.expiry_date < now:
-            membership.is_active = False
-            membership.left_at = now
-            session.add(membership)
-            session.commit()
-        else:
-            return {
-                "effective_mode": "sesion_en_vivo",
-                "can_access_live_session": True,
-                "can_access_sparring": True,
-                "active_cohort_id": cohort.id,
-                "active_cohort_name": cohort.name,
-            }
-
-    # Buscar membresía activa en cohorte finalizada (modo sparring)
-    statement_finished = (
-        select(CohortMembership, Cohort)
-        .join(Cohort, CohortMembership.cohort_id == Cohort.id)
-        .where(CohortMembership.user_id == user.id)
-        .where(CohortMembership.is_active == True)
-        .where(Cohort.status == CohortStatus.FINISHED)
-        .order_by(Cohort.end_date.desc())
-    )
-    finished = session.exec(statement_finished).first()
-    if finished:
-        membership, cohort = finished
-        if membership.expiry_date and membership.expiry_date < now:
-            membership.is_active = False
-            membership.left_at = now
-            session.add(membership)
-            session.commit()
-        else:
-            return {
-                "effective_mode": "sparring",
-                "can_access_live_session": False,
-                "can_access_sparring": True,
-                "active_cohort_id": cohort.id,
-                "active_cohort_name": cohort.name,
-            }
-
-    # Caso por defecto: sin membresía activa
-    return {
-        "effective_mode": "sparring",
-        "can_access_live_session": False,
-        "can_access_sparring": True,
-        "active_cohort_id": None,
-        "active_cohort_name": None,
-    }
-
-
-def _to_user_profile(session: Session, user: User) -> UserProfile:
-    access = _resolve_user_access(session, user)
-    return UserProfile(
-        id=user.id or 0,
-        email=user.email,
-        full_name=user.full_name,
-        role=user.role,
-        effective_mode=access["effective_mode"],
-        can_access_live_session=access["can_access_live_session"],
-        can_access_sparring=access["can_access_sparring"],
-        active_cohort_id=access["active_cohort_id"],
-        active_cohort_name=access["active_cohort_name"],
-    )
-
-
-def _get_case_for_user(session: Session, case_id: int, user: User) -> Case:
-    case = _get_case_or_404(session, case_id)
-    if user.role == UserRole.ADMIN:
-        return case
-    if case.owner_user_id != user.id:
-        raise HTTPException(status_code=403, detail="Sin acceso al caso")
-    return case
-
-
-def _round_or_none(value: float | None, digits: int = 2) -> float | None:
-    if value is None:
-        return None
-    return round(value, digits)
-
-
-def _build_metrics_summary(cases: list[Case], cohort_id: int | None = None) -> dict:
-    cases_total = len(cases)
-    closed_cases = [item for item in cases if item.status == CaseStatus.CERRADO]
-    cases_closed = len(closed_cases)
-    close_rate = (cases_closed / cases_total * 100) if cases_total else 0.0
-
-    cycle_days_values: list[int] = []
-    agreement_quality_values: list[float] = []
-    confidence_delta_values: list[int] = []
-    trend_buckets: dict[str, list[int]] = {}
-
-    for case in closed_cases:
-        if case.closed_at and case.created_at:
-            delta_days = (case.closed_at.date() - case.created_at.date()).days
-            cycle_days_values.append(max(delta_days, 0))
-
-        quality_parts = [
-            case.agreement_quality_result,
-            case.agreement_quality_relationship,
-            case.agreement_quality_sustainability,
-        ]
-        quality_valid = [float(item) for item in quality_parts if item is not None]
-        if quality_valid:
-            # Clamp each value to 1-5 before averaging
-            quality_clamped = [max(1.0, min(5.0, v)) for v in quality_valid]
-            agreement_quality_values.append(sum(quality_clamped) / len(quality_clamped))
-
-        if case.confidence_start is not None and case.confidence_end is not None:
-            delta = case.confidence_end - case.confidence_start
-            confidence_delta_values.append(delta)
-            period = (case.closed_at or case.updated_at).strftime("%Y-%m")
-            trend_buckets.setdefault(period, []).append(delta)
-
-    trend: list[MetricsTrendPoint] = []
-    for period in sorted(trend_buckets.keys()):
-        values = trend_buckets[period]
-        trend.append(
-            MetricsTrendPoint(
-                period=period,
-                confidence_delta_avg=round(sum(values) / len(values), 2),
-                cases_count=len(values),
-            )
-        )
-
-    return {
-        "cohort_id": cohort_id,
-        "cases_total": cases_total,
-        "cases_closed": cases_closed,
-        "close_rate": round(close_rate, 2),
-        "cycle_days_avg": _round_or_none(sum(cycle_days_values) / len(cycle_days_values), 2) if cycle_days_values else None,
-        "agreement_quality_avg": _round_or_none(sum(agreement_quality_values) / len(agreement_quality_values), 2) if agreement_quality_values else None,
-        "confidence_delta_avg": _round_or_none(sum(confidence_delta_values) / len(confidence_delta_values), 2) if confidence_delta_values else None,
-        "confidence_delta_trend": trend,
-    }
-
-
-def _build_final_certification_report(user: User, cases: list[Case]) -> FinalCertificationReport:
-    closed_cases = [item for item in cases if item.status == CaseStatus.CERRADO]
-
-    case_results: list[dict] = []
-    advanced_scores: list[float] = []
-    emotional_scores: list[float] = []
-    listening_scores: list[float] = []
-    roleplay_scores: list[float] = []
-    passed_cases = 0
-    failed_cases = 0
-
-    completed_exercises_total = 0
-    required_exercises_total = 0
-    covered_segments: set[str] = set()
-    discovery_questions: set[str] = set()
-
-    for case in closed_cases:
-        debrief_analysis = case.debrief_analysis or {}
-        certification = (debrief_analysis.get("certification") or {}) if isinstance(debrief_analysis, dict) else {}
-        if not certification:
-            continue
-
-        passed = bool(certification.get("certified", False))
-        if passed:
-            passed_cases += 1
-        else:
-            failed_cases += 1
-
-        pass_reasons = certification.get("pass_reasons") if isinstance(certification.get("pass_reasons"), list) else []
-        fail_reasons = certification.get("fail_reasons") if isinstance(certification.get("fail_reasons"), list) else []
-
-        case_results.append(
-            {
-                "case_id": case.id,
-                "case_title": case.title,
-                "case_closed_at": case.closed_at,
-                "passed": passed,
-                "score_advanced": int(certification.get("advanced_score", 0) or 0),
-                "pass_reasons": pass_reasons,
-                "fail_reasons": fail_reasons,
-            }
-        )
-
-        advanced_scores.append(float(certification.get("advanced_score", 0) or 0))
-        emotional_scores.append(float(debrief_analysis.get("emotional_regulation_score", 0) or 0))
-        listening_scores.append(float(debrief_analysis.get("listening_balance_score", 0) or 0))
-        roleplay_scores.append(float(debrief_analysis.get("role_play_score", 0) or 0))
-
-        completed_exercises_total += int(certification.get("completed_exercises", 0) or 0)
-        required_exercises_total += int(certification.get("required_exercises", 0) or 0)
-
-        debrief = case.debrief if isinstance(case.debrief, dict) else {}
-        role_play = debrief.get("role_play") if isinstance(debrief.get("role_play"), dict) else {}
-        exercise_results = role_play.get("exercise_results") if isinstance(role_play.get("exercise_results"), list) else []
-        for item in exercise_results:
-            if isinstance(item, dict) and item.get("completed"):
-                segment = str(item.get("segment", "")).strip().lower()
-                if segment:
-                    covered_segments.add(segment)
-
-        practiced = role_play.get("practiced_discovery_questions") if isinstance(role_play.get("practiced_discovery_questions"), list) else []
-        for question in practiced:
-            if isinstance(question, str) and question.strip():
-                discovery_questions.add(question.strip())
-
-    cases_with_certification = len(case_results)
-    avg_advanced = round(sum(advanced_scores) / len(advanced_scores), 2) if advanced_scores else 0.0
-    avg_emotional = round(sum(emotional_scores) / len(emotional_scores), 2) if emotional_scores else 0.0
-    avg_listening = round(sum(listening_scores) / len(listening_scores), 2) if listening_scores else 0.0
-    avg_roleplay = round(sum(roleplay_scores) / len(roleplay_scores), 2) if roleplay_scores else 0.0
-
-    final_pass_reasons: list[str] = []
-    final_fail_reasons: list[str] = []
-
-    if len(closed_cases) >= 4:
-        final_pass_reasons.append("Completó al menos 4 casos cerrados en el proceso completo.")
-    else:
-        final_fail_reasons.append("Necesita al menos 4 casos cerrados para graduación formal.")
-
-    if cases_with_certification >= 4:
-        final_pass_reasons.append("Tiene evidencia de certificación en múltiples casos.")
-    else:
-        final_fail_reasons.append("Falta evidencia consistente de certificación en múltiples casos.")
-
-    if avg_advanced >= 75:
-        final_pass_reasons.append("Promedio avanzado acumulado igual o mayor a 75.")
-    else:
-        final_fail_reasons.append("Promedio avanzado acumulado por debajo de 75.")
-
-    if avg_emotional >= 70:
-        final_pass_reasons.append("Mantiene regulación emocional sostenida bajo presión.")
-    else:
-        final_fail_reasons.append("Regulación emocional aún inestable; reforzar resets y recuperación.")
-
-    if {"smb", "mid_market", "enterprise"}.issubset(covered_segments):
-        final_pass_reasons.append("Cobertura completa de escenarios SMB, mid-market y enterprise.")
-    else:
-        final_fail_reasons.append("Falta cubrir escenarios de uno o más segmentos (SMB/mid-market/enterprise).")
-
-    if len(discovery_questions) >= 8:
-        final_pass_reasons.append("Practica repertorio sólido de preguntas para problemas subyacentes.")
-    else:
-        final_fail_reasons.append("Necesita ampliar repertorio de preguntas de descubrimiento (mínimo 8).")
-
-    if required_exercises_total > 0 and completed_exercises_total >= int(required_exercises_total * 0.7):
-        final_pass_reasons.append("Cumple volumen mínimo de ejercicios de la serie de certificación.")
-    else:
-        final_fail_reasons.append("Volumen de ejercicios insuficiente para graduación formal.")
-
-    final_passed = len(final_fail_reasons) == 0
-
-    evidence_note = (
-        "Evaluación acumulada basada en casos cerrados reales del participante, scores de debrief y resultados de ejercicios B2B por segmento."
-    )
-    ai_usage_note = (
-        "La IA se usa para análisis y feedback estratégico del caso cuando el proveedor OpenAI está activo; las plantillas base actuales son curadas por reglas/metodología interna."
-    )
-
-    return FinalCertificationReport(
-        user_id=user.id or 0,
-        cases_considered=len(closed_cases),
-        cases_with_certification=cases_with_certification,
-        passed_cases=passed_cases,
-        failed_cases=failed_cases,
-        final_passed=final_passed,
-        average_advanced_score=avg_advanced,
-        average_emotional_regulation_score=avg_emotional,
-        average_listening_balance_score=avg_listening,
-        average_role_play_score=avg_roleplay,
-        completed_exercises_total=completed_exercises_total,
-        required_exercises_total=required_exercises_total,
-        covered_segments=sorted(list(covered_segments)),
-        practiced_discovery_questions_count=len(discovery_questions),
-        final_pass_reasons=final_pass_reasons,
-        final_fail_reasons=final_fail_reasons,
-        evidence_note=evidence_note,
-        ai_usage_note=ai_usage_note,
-        case_results=case_results,
-    )
-
-
 @app.get("/api/health")
 def health_check() -> dict:
     return {"ok": True}
-
-@app.put("/api/admin/cohorts/{cohort_id}/members/{user_id}")
-def admin_update_cohort_member(
-    cohort_id: int,
-    user_id: int,
-    payload: dict = Body(...),
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    _require_admin(current_user)
-    membership = session.exec(
-        select(CohortMembership)
-        .where(CohortMembership.user_id == user_id)
-        .where(CohortMembership.cohort_id == cohort_id)
-    ).first()
-    if not membership:
-        raise HTTPException(status_code=404, detail="Membresía no encontrada")
-    # Actualizar campos
-    if "is_active" in payload:
-        print(f"Actualizando is_active de membresía {membership.id} a {payload['is_active']}")
-        membership.is_active = payload["is_active"]
-        if not payload["is_active"]:
-            membership.left_at = _utc_now()
-    if "expiry_date" in payload:
-        # Convertir string a datetime si es necesario
-        from datetime import datetime
-        expiry = payload["expiry_date"]
-        if isinstance(expiry, str):
-            try:
-                # Intentar parsear solo fecha (YYYY-MM-DD)
-                membership.expiry_date = datetime.strptime(expiry, "%Y-%m-%d")
-            except ValueError:
-                # Intentar parsear fecha y hora (YYYY-MM-DD HH:MM:SS)
-                try:
-                    membership.expiry_date = datetime.strptime(expiry, "%Y-%m-%d %H:%M:%S")
-                except Exception:
-                    raise HTTPException(status_code=400, detail=f"Formato de fecha inválido: {expiry}")
-        else:
-            membership.expiry_date = expiry
-    session.add(membership)
-    session.commit()
-    return {"ok": True}
-
-# ============== HELPER FUNCTIONS FOR PUBLIC LEADS ==============
-
-def _log_lead_capture(
-    session: Session, 
-    email: str, 
-    source: str, 
-    nombre: str | None = None,
-    tamaño_equipo: str | None = None,
-    preocupacion: str | None = None
-) -> PublicLeadCapture:
-    """Log public lead capture to database for auditing"""
-    capture = PublicLeadCapture(
-        email=email.strip().lower(),
-        source=source,
-        nombre=nombre.strip() if nombre else None,
-        tamaño_equipo=tamaño_equipo.strip() if tamaño_equipo else None,
-        preocupacion=preocupacion.strip() if preocupacion else None,
-    )
-    session.add(capture)
-    session.commit()
-    session.refresh(capture)
-    return capture
-
-
-def _notify_admin_of_lead(
-    email: str,
-    source: str,
-    nombre: str | None = None,
-    tamaño_equipo: str | None = None,
-    preocupacion: str | None = None,
-) -> None:
-    """Notify admin via Brevo when new lead captured"""
-    try:
-        from .brevo_engine import send_admin_notification
-        
-        send_admin_notification(
-            lead_email=email,
-            source=source,
-            nombre=nombre,
-            tamaño_equipo=tamaño_equipo,
-            preocupacion=preocupacion,
-        )
-    except Exception as exc:
-        print(f"⚠️ No se pudo enviar notificación al admin ({email}): {exc}")
 
 # ============== HEALTH CHECK & DIAGNOSTICS ==============
 
@@ -618,12 +252,6 @@ def capture_public_lead(
     session: Session = Depends(get_session)
 ) -> PublicLeadCaptureResponse:
     email = payload.email.strip().lower()
-    
-    # Log to database
-    _log_lead_capture(session, email, payload.source, preocupacion=payload.preocupacion_negociacion)
-    
-    # Notify admin
-    _notify_admin_of_lead(email, payload.source, preocupacion=payload.preocupacion_negociacion)
     
     # Sync to Brevo
     try:
@@ -643,59 +271,6 @@ def capture_public_lead(
     )
 
 
-@app.post("/api/public/demo/start", response_model=DemoStartResponse)
-def start_public_demo(payload: DemoStartInput, session: Session = Depends(get_session)) -> DemoStartResponse:
-    email = payload.email.strip().lower()
-    if "@" not in email or "." not in email.split("@")[-1]:
-        raise HTTPException(status_code=400, detail="Email inválido")
-
-    existing_user = session.exec(select(User).where(User.email == email)).first()
-    if existing_user and existing_user.role != UserRole.STUDENT:
-        raise HTTPException(status_code=409, detail="Este email ya está asociado a una cuenta administrativa")
-
-    if existing_user:
-        demo_user = existing_user
-    else:
-        random_password = token_urlsafe(24)
-        demo_user = User(
-            email=email,
-            password_hash=hash_password(random_password),
-            full_name="",
-            role=UserRole.STUDENT,
-            is_active=True,
-        )
-        session.add(demo_user)
-        session.commit()
-        session.refresh(demo_user)
-
-    demo_case = seed_demo_case_for_user(session, demo_user.id or 0)
-
-    # Log to database
-    _log_lead_capture(session, email, "demo", preocupacion="Exploración del framework con caso modelo de negociación salarial")
-
-    # Notify admin
-    _notify_admin_of_lead(email, "demo", preocupacion="Solicitó demo del framework")
-
-    demo_message = "Demo iniciado. Accedé al dashboard para explorar el caso modelo."
-    try:
-        from .brevo_engine import upsert_contact_in_brevo
-
-        upsert_contact_in_brevo(
-            email,
-            "Solicitud demo: explorar caso cerrado de negociación salarial",
-            "demo",
-        )
-    except RuntimeError as exc:
-        print(f"⚠️ No se pudo enviar el lead demo a Brevo ({email}): {exc}")
-        demo_message = "Demo iniciado. Brevo no disponible en este entorno, pero el acceso de prueba fue creado."
-
-    token = create_access_token(subject=demo_user.email)
-    return DemoStartResponse(
-        access_token=token,
-        user=_to_user_profile(session, demo_user),
-        default_case_id=demo_case.id,
-        message=demo_message,
-    )
 
 
 @app.post("/api/public/solicitar-asesoria", response_model=PublicLeadCaptureResponse)
@@ -705,25 +280,6 @@ def solicitar_asesoria(
 ) -> PublicLeadCaptureResponse:
     """Solicitud de asesoría directa: Nombre, email, tamaño equipo, preocupación"""
     email = payload.email.strip().lower()
-    
-    # Log to database
-    _log_lead_capture(
-        session,
-        email,
-        "solicitar_asesoria",
-        nombre=payload.nombre,
-        tamaño_equipo=payload.tamaño_equipo,
-        preocupacion=payload.preocupacion
-    )
-    
-    # Notify admin
-    _notify_admin_of_lead(
-        email,
-        "solicitar_asesoria",
-        nombre=payload.nombre,
-        tamaño_equipo=payload.tamaño_equipo,
-        preocupacion=payload.preocupacion
-    )
     
     # Sync to Brevo
     try:
@@ -751,21 +307,6 @@ def protocolo_48h(
 ) -> PublicLeadCaptureResponse:
     """Protocolo 48 Horas lead capture"""
     email = payload.email.strip().lower()
-    
-    # Log to database
-    _log_lead_capture(
-        session,
-        email,
-        "protocolo_48h",
-        preocupacion="Interés en sesión de asesoramiento en 48 horas"
-    )
-
-    # Notify admin
-    _notify_admin_of_lead(
-        email,
-        "protocolo_48h",
-        preocupacion="Solicitó sesión de asesoramiento en 48 horas"
-    )
 
     # Sync to Brevo
     try:
@@ -806,23 +347,6 @@ def pdf_download(
     if not pdf_url:
         raise HTTPException(status_code=404, detail="PDF no encontrado")
 
-    # Log to database
-    _log_lead_capture(
-        session,
-        email,
-        "pdf_download",
-        nombre=name,
-        preocupacion=f"Descarga de PDF: {pdf_name}"
-    )
-
-    # Notify admin
-    _notify_admin_of_lead(
-        email,
-        "pdf_download",
-        nombre=name,
-        preocupacion=f"Descargó PDF: {pdf_name}"
-    )
-
     # Send PDF via email
     try:
         from .brevo_engine import send_pdf_email, upsert_contact_in_brevo
@@ -849,892 +373,6 @@ def pdf_download(
         ok=True,
         message="PDF enviado a tu email. Revisá tu bandeja de entrada.",
     )
-
-
-@app.get("/api/diagnostics/db")
-def diagnose_database(session: Session = Depends(get_session)) -> dict:
-    """Diagnose database connectivity and basic functionality"""
-    try:
-        # Test database connection
-        test_query = session.exec(select(Cohort).limit(1)).first()
-        
-        # Count users
-        user_count = len(session.exec(select(User)).all())
-        
-        # Count cohorts
-        cohort_count = len(session.exec(select(Cohort)).all())
-        
-        return {
-            "status": "ok",
-            "database": "connected",
-            "user_count": user_count,
-            "cohort_count": cohort_count,
-            "message": "Database is working correctly"
-        }
-    except Exception as e:
-        print(f"❌ Database diagnostic failed: {str(e)}")
-        print(f"Stack trace: {traceback.format_exc()}")
-        return {
-            "status": "error",
-            "database": "disconnected",
-            "error": str(e),
-            "message": "Failed to connect to database"
-        }
-
-@app.post("/api/auth/login", response_model=TokenResponse)
-def login(payload: LoginInput, session: Session = Depends(get_session)) -> TokenResponse:
-    statement = select(User).where(User.email == payload.email)
-    user = session.exec(statement).first()
-    if not user or not user.is_active or not verify_password(payload.password, user.password_hash):
-        raise HTTPException(status_code=401, detail="Credenciales inválidas")
-
-    token = create_access_token(subject=user.email)
-    return TokenResponse(access_token=token, user=_to_user_profile(session, user))
-
-
-@app.get("/api/auth/me", response_model=UserProfile)
-def me(
-    current_user: User = Depends(get_current_user),
-    session: Session = Depends(get_session),
-) -> UserProfile:
-    return _to_user_profile(session, current_user)
-
-
-@app.get("/api/admin/users", response_model=list[AdminUserRead])
-def admin_list_users(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> list[User]:
-    _require_admin(current_user)
-    statement = select(User).order_by(User.created_at.desc())
-    return list(session.exec(statement).all())
-
-
-@app.post("/api/admin/users", response_model=AdminUserRead)
-def admin_create_user(
-    payload: AdminUserCreate,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> User:
-    _require_admin(current_user)
-    existing = session.exec(select(User).where(User.email == payload.email)).first()
-    if existing:
-        raise HTTPException(status_code=400, detail="El email ya existe")
-
-    user = User(
-        email=payload.email,
-        password_hash=hash_password(payload.password),
-        full_name=payload.full_name,
-        role=payload.role,
-        is_active=True,
-    )
-    session.add(user)
-    session.commit()
-    session.refresh(user)
-    return user
-
-
-@app.get("/api/admin/cohorts", response_model=list[CohortRead])
-def admin_list_cohorts(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> list[Cohort]:
-    _require_admin(current_user)
-    statement = select(Cohort).order_by(Cohort.start_date.desc())
-    return list(session.exec(statement).all())
-
-
-@app.post("/api/admin/cohorts", response_model=CohortRead)
-def admin_create_cohort(
-    payload: CohortCreate,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> Cohort:
-    _require_admin(current_user)
-    cohort = Cohort(
-        name=payload.name,
-        start_date=payload.start_date,
-        end_date=payload.end_date,
-        status=payload.status,
-    )
-    session.add(cohort)
-    session.commit()
-    session.refresh(cohort)
-    return cohort
-
-
-@app.patch("/api/admin/cohorts/{cohort_id}", response_model=CohortRead)
-def admin_update_cohort(
-    cohort_id: int,
-    payload: CohortUpdate,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> Cohort:
-    _require_admin(current_user)
-    cohort = session.get(Cohort, cohort_id)
-    if not cohort:
-        raise HTTPException(status_code=404, detail="Cohorte no encontrada")
-
-    data = payload.model_dump(exclude_unset=True)
-    for key, value in data.items():
-        setattr(cohort, key, value)
-    cohort.updated_at = _utc_now()
-    session.add(cohort)
-    session.commit()
-    session.refresh(cohort)
-    return cohort
-
-
-@app.post("/api/admin/cohorts/{cohort_id}/members")
-def admin_add_cohort_members(
-    cohort_id: int,
-    payload: CohortMembershipAdd,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    _require_admin(current_user)
-    cohort = session.get(Cohort, cohort_id)
-    if not cohort:
-        raise HTTPException(status_code=404, detail="Cohorte no encontrada")
-
-    added = 0
-    for user_id in payload.user_ids:
-        user = session.get(User, user_id)
-        if not user:
-            continue
-        existing = session.exec(
-            select(CohortMembership)
-            .where(CohortMembership.user_id == user_id)
-            .where(CohortMembership.cohort_id == cohort_id)
-            .where(CohortMembership.is_active == True)  # noqa: E712
-        ).first()
-        if existing:
-            continue
-
-        membership = CohortMembership(user_id=user_id, cohort_id=cohort_id, is_active=True)
-        session.add(membership)
-        added += 1
-
-    session.commit()
-    return {"ok": True, "added": added}
-
-
-@app.get("/api/admin/cohorts/{cohort_id}/members/{user_id}")
-def admin_get_cohort_member(
-    cohort_id: int,
-    user_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    _require_admin(current_user)
-    membership = session.exec(
-        select(CohortMembership)
-        .where(CohortMembership.user_id == user_id)
-        .where(CohortMembership.cohort_id == cohort_id)
-    ).first()
-    if not membership:
-        raise HTTPException(status_code=404, detail="Membresía no encontrada")
-    
-    return {
-        "id": membership.id,
-        "user_id": membership.user_id,
-        "cohort_id": membership.cohort_id,
-        "joined_at": membership.joined_at,
-        "left_at": membership.left_at,
-        "is_active": membership.is_active,
-        "expiry_date": membership.expiry_date,
-    }
-
-
-@app.delete("/api/admin/cohorts/{cohort_id}/members/{user_id}")
-def admin_remove_cohort_member(
-    cohort_id: int,
-    user_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    _require_admin(current_user)
-    membership = session.exec(
-        select(CohortMembership)
-        .where(CohortMembership.user_id == user_id)
-        .where(CohortMembership.cohort_id == cohort_id)
-        .where(CohortMembership.is_active == True)  # noqa: E712
-    ).first()
-    if not membership:
-        raise HTTPException(status_code=404, detail="Membresía no encontrada")
-
-    membership.is_active = False
-    membership.left_at = _utc_now()
-    session.add(membership)
-    session.commit()
-    return {"ok": True}
-
-
-@app.get("/api/admin/cohorts/{cohort_id}/members", response_model=list[dict])
-def admin_list_cohort_members(
-    cohort_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> list[dict]:
-    try:
-        _require_admin(current_user)
-        cohort = session.get(Cohort, cohort_id)
-        if not cohort:
-            raise HTTPException(status_code=404, detail="Cohorte no encontrada")
-
-        print(f"📋 Fetching members for cohort {cohort_id}")
-        
-        memberships = session.exec(
-            select(CohortMembership, User)
-            .join(User, CohortMembership.user_id == User.id)
-            .where(CohortMembership.cohort_id == cohort_id)
-            .order_by(User.full_name.asc(), User.email.asc())
-        ).all()
-        
-        print(f"✅ Found {len(memberships)} memberships")
-        
-        result = []
-        now = _utc_now()
-        for membership, user in memberships:
-            try:
-                # Desactivar automáticamente membresías expiradas
-                if membership.expiry_date and membership.is_active:
-                    # Convertir a timezone-aware si es necesario para comparar
-                    expiry_dt = membership.expiry_date
-                    if expiry_dt.tzinfo is None:
-                        expiry_dt = expiry_dt.replace(tzinfo=UTC)
-                    if expiry_dt < now:
-                        membership.is_active = False
-                        session.add(membership)
-                
-                result.append({
-                    "id": user.id,
-                    "email": user.email,
-                    "full_name": user.full_name,
-                    "role": user.role.value if hasattr(user.role, 'value') else str(user.role),
-                    "is_active": membership.is_active,
-                    "membership_active": membership.is_active,
-                })
-            except Exception as e:
-                print(f"⚠️ Error processing member {user.id}: {str(e)}")
-                raise
-        
-        session.commit()
-        print(f"✅ Successfully retrieved {len(result)} members for cohort {cohort_id}")
-        return result
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ Error in admin_list_cohort_members: {str(e)}")
-        print(f"Stack trace: {traceback.format_exc()}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error fetching cohort members: {str(e)}"
-        )
-    return result
-
-
-@app.post("/api/admin/leader-evaluations", response_model=LeaderEvaluationRead)
-def admin_create_leader_evaluation(
-    payload: LeaderEvaluationCreate,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> LeaderEvaluation:
-    _require_admin(current_user)
-
-    effective_period_label = payload.period_label
-    if not effective_period_label and payload.follow_up_date:
-        effective_period_label = payload.follow_up_date.strftime("%Y-%m")
-    if not effective_period_label:
-        effective_period_label = _utc_now().strftime("%Y-%m")
-
-    if not _is_valid_period_label(effective_period_label):
-        raise HTTPException(status_code=400, detail="period_label inválido (usar YYYY-MM)")
-
-    target_user = session.get(User, payload.target_user_id)
-    if not target_user:
-        raise HTTPException(status_code=404, detail="Alumno no encontrado")
-
-    if target_user.role != UserRole.STUDENT:
-        raise HTTPException(status_code=400, detail="La evaluación debe ser para un alumno")
-
-    evaluation = LeaderEvaluation(
-        evaluator_user_id=current_user.id or 0,
-        target_user_id=payload.target_user_id,
-        cohort_id=payload.cohort_id,
-        follow_up_date=payload.follow_up_date,
-        period_label=effective_period_label,
-        preparation_score=payload.preparation_score,
-        execution_score=payload.execution_score,
-        collaboration_score=payload.collaboration_score,
-        autonomy_score=payload.autonomy_score,
-        confidence_score=payload.confidence_score,
-        summary_note=payload.summary_note,
-        next_action=payload.next_action,
-    )
-    session.add(evaluation)
-    session.commit()
-    session.refresh(evaluation)
-    return evaluation
-
-
-@app.get("/api/admin/leader-evaluations", response_model=list[LeaderEvaluationRead])
-def admin_list_leader_evaluations(
-    target_user_id: int | None = None,
-    cohort_id: int | None = None,
-    period_label: str | None = None,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> list[LeaderEvaluation]:
-    _require_admin(current_user)
-
-    statement = select(LeaderEvaluation)
-    if target_user_id is not None:
-        statement = statement.where(LeaderEvaluation.target_user_id == target_user_id)
-    if cohort_id is not None:
-        statement = statement.where(LeaderEvaluation.cohort_id == cohort_id)
-    if period_label:
-        statement = statement.where(LeaderEvaluation.period_label == period_label)
-
-    statement = statement.order_by(LeaderEvaluation.created_at.desc())
-    return list(session.exec(statement).all())
-
-
-@app.get("/api/leader-evaluations/me", response_model=list[LeaderEvaluationRead])
-def list_my_leader_evaluations(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> list[LeaderEvaluation]:
-    statement = (
-        select(LeaderEvaluation)
-        .where(LeaderEvaluation.target_user_id == (current_user.id or 0))
-        .order_by(LeaderEvaluation.created_at.desc())
-    )
-    return list(session.exec(statement).all())
-
-
-@app.post("/api/cases", response_model=CaseRead)
-def create_case(
-    case_in: CaseCreate,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> Case:
-    case = Case(
-        title=case_in.title,
-        mode=case_in.mode,
-        owner_user_id=current_user.id,
-        origin=CaseOrigin.SPARRING.value,
-        confidence_start=case_in.confidence_start,
-    )
-    session.add(case)
-    session.commit()
-    session.refresh(case)
-
-    _save_version(session, case.id, "case_created", {"title": case.title, "mode": case.mode.value})
-    session.commit()
-
-    return case
-
-
-@app.get("/api/cases", response_model=list[CaseListItem])
-def list_cases(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> list[Case]:
-    statement = select(Case)
-    if current_user.role != UserRole.ADMIN:
-        statement = statement.where(Case.owner_user_id == current_user.id)
-    statement = statement.order_by(Case.updated_at.desc())
-    return list(session.exec(statement).all())
-
-
-@app.get("/api/case-templates", response_model=list[CaseTemplate])
-def list_case_templates(current_user: User = Depends(get_current_user)) -> list[CaseTemplate]:
-    _ = current_user
-    return [
-        CaseTemplate(
-            id=item["id"],
-            title=item["title"],
-            mode=item["mode"],
-            ideal_for=item.get("ideal_for", ""),
-        )
-        for item in CASE_TEMPLATES
-    ]
-
-
-@app.post("/api/cases/from-template/{template_id}", response_model=CaseRead)
-def create_case_from_template(
-    template_id: str,
-    payload: CaseFromTemplateCreate | None = None,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> Case:
-    template = next((item for item in CASE_TEMPLATES if item["id"] == template_id), None)
-    if not template:
-        raise HTTPException(status_code=404, detail="Plantilla no encontrada")
-
-    access = _resolve_user_access(session, current_user)
-    case_origin = CaseOrigin.LIVE_SESSION.value if access["effective_mode"] == "sesion_en_vivo" else CaseOrigin.SPARRING.value
-
-    case = Case(
-        title=template["title"],
-        mode=template["mode"],
-        preparation=template["preparation"],
-        status=CaseStatus.EN_PREPARACION,
-        owner_user_id=current_user.id,
-        origin=case_origin,
-        cohort_id=access["active_cohort_id"],
-        confidence_start=payload.confidence_start if payload else None,
-    )
-    session.add(case)
-    session.commit()
-    session.refresh(case)
-
-    _save_version(
-        session,
-        case.id,
-        "case_created_from_template",
-        {"template_id": template_id, "title": case.title},
-    )
-    session.commit()
-
-    return case
-
-
-@app.get("/api/cases/{case_id}", response_model=CaseRead)
-def get_case(
-    case_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> Case:
-    return _get_case_for_user(session, case_id, current_user)
-
-
-@app.delete("/api/cases/{case_id}")
-def delete_case(
-    case_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    case = _get_case_for_user(session, case_id, current_user)
-
-    versions_stmt = select(CaseVersion).where(CaseVersion.case_id == case_id)
-    versions = list(session.exec(versions_stmt).all())
-    for version in versions:
-        session.delete(version)
-
-    session.delete(case)
-    session.commit()
-    return {"ok": True}
-
-
-@app.put("/api/cases/{case_id}/preparation", response_model=CaseRead)
-def upsert_preparation(
-    case_id: int,
-    preparation: PreparationInput,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> Case:
-    case = _get_case_for_user(session, case_id, current_user)
-    if case.status == CaseStatus.CERRADO:
-        raise HTTPException(status_code=400, detail="No se puede editar un caso cerrado")
-
-    case.preparation = preparation.model_dump()
-    case.updated_at = _utc_now()
-    case.status = CaseStatus.PREPARADO
-
-    _save_version(session, case_id, "preparation_updated", case.preparation)
-
-    session.add(case)
-    session.commit()
-    session.refresh(case)
-    return case
-
-
-@app.post("/api/cases/{case_id}/analyze", response_model=AnalysisOutput)
-def analyze_case(
-    case_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> AnalysisOutput:
-    case = _get_case_for_user(session, case_id, current_user)
-    if not case.preparation:
-        raise HTTPException(status_code=400, detail="Completa preparación antes de analizar")
-
-    preparation = PreparationInput.model_validate(case.preparation)
-    provider_used = "rules"
-    if settings.analysis_provider == "openai":
-        try:
-            from .openai_engine import analyze_preparation_with_openai
-            analysis = analyze_preparation_with_openai(preparation, case.mode)
-            provider_used = "openai"
-        except Exception:
-            analysis = analyze_preparation(preparation, case.mode)
-            provider_used = "rules_fallback"
-    else:
-        analysis = analyze_preparation(preparation, case.mode)
-
-    case.analysis = analysis.model_dump()
-    case.inconsistency_count = len(analysis.inconsistencies)
-    case.clarity_score = 100 - min(90, len(analysis.inconsistencies) * 20 + len(analysis.clarification_questions) * 10)
-    # Solo cambiar a PREPARADO si está EN_PREPARACION; mantener status actual en otros casos
-    if case.status == CaseStatus.EN_PREPARACION:
-        case.status = CaseStatus.PREPARADO
-    case.updated_at = _utc_now()
-
-    _save_version(session, case_id, "analysis_generated", {**case.analysis, "provider": provider_used})
-
-    session.add(case)
-    session.commit()
-
-    return analysis
-
-
-@app.post("/api/cases/{case_id}/execute", response_model=CaseRead)
-def mark_executed(
-    case_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> Case:
-    case = _get_case_for_user(session, case_id, current_user)
-    if case.status != CaseStatus.PREPARADO:
-        raise HTTPException(status_code=400, detail="Solo un caso preparado puede pasar a ejecutado")
-
-    case.status = CaseStatus.EJECUTADO_PENDIENTE_DEBRIEF
-    case.updated_at = _utc_now()
-
-    _save_version(session, case_id, "marked_executed", {"status": case.status.value})
-
-    session.add(case)
-    session.commit()
-    session.refresh(case)
-    return case
-
-
-@app.put("/api/cases/{case_id}/debrief", response_model=CaseRead)
-def submit_debrief(
-    case_id: int,
-    debrief_in: DebriefInput,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> Case:
-    case = _get_case_for_user(session, case_id, current_user)
-    if case.status not in [CaseStatus.EJECUTADO_PENDIENTE_DEBRIEF, CaseStatus.CERRADO]:
-        raise HTTPException(status_code=400, detail="Debrief solo disponible luego de ejecutar")
-
-    case.debrief = debrief_in.model_dump()
-    case.updated_at = _utc_now()
-
-    # Generar segundo análisis automático: Comparar preparación vs. ejecución
-    if case.preparation and case.analysis:
-        try:
-            preparation = PreparationInput.model_validate(case.preparation)
-            analysis = AnalysisOutput.model_validate(case.analysis)
-            debrief_analysis = analyze_debrief(preparation, analysis, debrief_in)
-            case.debrief_analysis = debrief_analysis
-        except Exception:
-            # Si falla el análisis, continuar sin él
-            pass
-
-    _save_version(session, case_id, "debrief_submitted", case.debrief)
-
-    session.add(case)
-    session.commit()
-    session.refresh(case)
-    return case
-
-
-@app.post("/api/cases/{case_id}/close", response_model=FinalMemo)
-def close_case(
-    case_id: int,
-    close_in: CloseCaseInput,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> FinalMemo:
-    case = _get_case_for_user(session, case_id, current_user)
-
-    if case.status != CaseStatus.EJECUTADO_PENDIENTE_DEBRIEF:
-        raise HTTPException(status_code=400, detail="Solo un caso ejecutado puede cerrarse")
-
-    if not case.preparation or not case.analysis or not case.debrief:
-        raise HTTPException(status_code=400, detail="Se requiere preparación, análisis y debrief completos")
-
-    preparation = PreparationInput.model_validate(case.preparation)
-    analysis = AnalysisOutput.model_validate(case.analysis)
-    debrief = DebriefInput.model_validate(case.debrief)
-
-    memo = build_final_memo(preparation, analysis, debrief, case.debrief_analysis)
-
-    case.final_memo = memo
-    case.confidence_end = close_in.confidence_end
-    case.agreement_quality_result = close_in.agreement_quality_result
-    case.agreement_quality_relationship = close_in.agreement_quality_relationship
-    case.agreement_quality_sustainability = close_in.agreement_quality_sustainability
-    case.status = CaseStatus.CERRADO
-    case.closed_at = _utc_now()
-    case.updated_at = _utc_now()
-
-    _save_version(session, case_id, "case_closed", memo)
-
-    session.add(case)
-    session.commit()
-
-    # Send closure email to user
-    try:
-        from .brevo_engine import send_case_closure_email
-        send_case_closure_email(
-            user_email=current_user.email,
-            case_title=case.title,
-            final_memo=memo
-        )
-    except Exception as exc:
-        # Don't fail the request if email fails
-        logger.warning(f"Email de cierre no enviado para caso {case_id}: {exc}")
-
-    return FinalMemo.model_validate(memo)
-
-
-@app.get("/api/cases/{case_id}/memo", response_model=FinalMemo)
-def get_memo(
-    case_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> FinalMemo:
-    case = _get_case_for_user(session, case_id, current_user)
-    if not case.final_memo:
-        raise HTTPException(status_code=404, detail="Memo final aún no generado")
-    return FinalMemo.model_validate(case.final_memo)
-
-
-@app.get("/api/cases/{case_id}/versions")
-def get_versions(
-    case_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> list[CaseVersion]:
-    _get_case_for_user(session, case_id, current_user)
-    statement = select(CaseVersion).where(CaseVersion.case_id == case_id).order_by(CaseVersion.created_at.asc())
-    return list(session.exec(statement).all())
-
-
-@app.get("/api/metrics/me", response_model=StudentMetricsSummary)
-def get_my_metrics(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> StudentMetricsSummary:
-    statement = select(Case)
-    if current_user.role != UserRole.ADMIN:
-        statement = statement.where(Case.owner_user_id == current_user.id)
-    cases = list(session.exec(statement).all())
-    summary = _build_metrics_summary(cases)
-    return StudentMetricsSummary(**summary)
-
-
-@app.get("/api/admin/metrics/anonymous", response_model=AdminAnonymousMetricsSummary)
-def get_admin_anonymous_metrics(
-    cohort_id: int | None = None,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> AdminAnonymousMetricsSummary:
-    _require_admin(current_user)
-
-    statement = select(Case)
-    if cohort_id is not None:
-        statement = statement.where(Case.cohort_id == cohort_id)
-
-    cases = list(session.exec(statement).all())
-    summary = _build_metrics_summary(cases, cohort_id=cohort_id)
-    summary["active_students_with_cases"] = len({item.owner_user_id for item in cases if item.owner_user_id is not None})
-    return AdminAnonymousMetricsSummary(**summary)
-
-
-@app.get("/api/certification/final", response_model=FinalCertificationReport)
-def get_final_certification_report(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> FinalCertificationReport:
-    statement = select(Case)
-    if current_user.role != UserRole.ADMIN:
-        statement = statement.where(Case.owner_user_id == current_user.id)
-    cases = list(session.exec(statement.order_by(Case.closed_at.desc())).all())
-    return _build_final_certification_report(current_user, cases)
-
-
-@app.get("/api/admin/certification/final/{user_id}", response_model=FinalCertificationReport)
-def get_admin_final_certification_report(
-    user_id: int,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> FinalCertificationReport:
-    _require_admin(current_user)
-    target_user = session.get(User, user_id)
-    if not target_user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado")
-
-    statement = (
-        select(Case)
-        .where(Case.owner_user_id == user_id)
-        .order_by(Case.closed_at.desc())
-    )
-    cases = list(session.exec(statement).all())
-    return _build_final_certification_report(target_user, cases)
-
-
-@app.get("/api/gamification/progress", response_model=StudentGamificationProgress)
-def get_gamification_progress(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> StudentGamificationProgress:
-    """Obtiene el progreso de gamificación del estudiante actual."""
-    statement = select(Case).where(Case.owner_user_id == current_user.id).order_by(Case.created_at)
-    cases_db = list(session.exec(statement).all())
-    
-    # Convertir casos a dict para la función de cálculo
-    cases = [case.model_dump() for case in cases_db]
-    
-    gamification_data = _calculate_gamification_progress(cases)
-    gamification_data["user_id"] = current_user.id
-    
-    return StudentGamificationProgress(**gamification_data)
-
-
-@app.get("/api/progress/report", response_model=PilotProgressReport)
-def get_progress_report(
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> PilotProgressReport:
-    """Genera el reporte exportable de progreso del participante (piloto)."""
-    statement = select(Case).where(Case.owner_user_id == current_user.id).order_by(Case.created_at)
-    all_cases = list(session.exec(statement).all())
-
-    def _safe_int(val: object, default: int = 0) -> int:
-        try:
-            return int(val or default)
-        except (TypeError, ValueError):
-            return default
-
-    def _avg(lst: list[float]) -> float:
-        return round(sum(lst) / len(lst), 1) if lst else 0.0
-
-    case_items: list[CaseProgressItem] = []
-    emotional_scores: list[float] = []
-    listening_scores: list[float] = []
-    roleplay_scores: list[float] = []
-    advanced_scores: list[float] = []
-    zone_verde = 0
-    zone_amarilla = 0
-    zone_roja = 0
-    certified_count = 0
-
-    for case in all_cases:
-        da = case.debrief_analysis if isinstance(case.debrief_analysis, dict) else {}
-        cert = da.get("certification") or {}
-        if not isinstance(cert, dict):
-            cert = {}
-        debrief = case.debrief if isinstance(case.debrief, dict) else {}
-        live = debrief.get("live_support") or {}
-        if not isinstance(live, dict):
-            live = {}
-
-        emotional = _safe_int(da.get("emotional_regulation_score"))
-        listening = _safe_int(da.get("listening_balance_score"))
-        roleplay = _safe_int(da.get("role_play_score"))
-        rapport = _safe_int(da.get("rapport_activation_score"))
-        trap = _safe_int(da.get("trap_detection_score"))
-        boundary = _safe_int(da.get("boundary_control_score"))
-        advanced = _safe_int(cert.get("advanced_score"))
-        is_certified = bool(cert.get("certified", False))
-        zone = str(live.get("current_zone") or "verde")
-        transitions = _safe_int(live.get("semaphore_transitions"))
-        red_alerts = _safe_int(live.get("red_alert_count"))
-        resets = _safe_int(live.get("resets_used"))
-
-        confidence_delta: int | None = None
-        if case.confidence_start is not None and case.confidence_end is not None:
-            confidence_delta = case.confidence_end - case.confidence_start
-
-        if case.status == CaseStatus.CERRADO:
-            if emotional > 0:
-                emotional_scores.append(float(emotional))
-            if listening > 0:
-                listening_scores.append(float(listening))
-            if roleplay > 0:
-                roleplay_scores.append(float(roleplay))
-            if advanced > 0:
-                advanced_scores.append(float(advanced))
-            if is_certified:
-                certified_count += 1
-            if zone == "verde":
-                zone_verde += 1
-            elif zone == "amarilla":
-                zone_amarilla += 1
-            elif zone == "roja":
-                zone_roja += 1
-
-        case_items.append(CaseProgressItem(
-            case_id=case.id or 0,
-            title=case.title,
-            status=case.status.value,
-            created_at=case.created_at,
-            closed_at=case.closed_at,
-            confidence_start=case.confidence_start,
-            confidence_end=case.confidence_end,
-            confidence_delta=confidence_delta,
-            emotional_regulation_score=emotional,
-            listening_balance_score=listening,
-            role_play_score=roleplay,
-            rapport_activation_score=rapport,
-            trap_detection_score=trap,
-            boundary_control_score=boundary,
-            advanced_score=advanced,
-            certified=is_certified,
-            current_zone=zone,
-            semaphore_transitions=transitions,
-            red_alerts=red_alerts,
-            resets_used=resets,
-        ))
-
-    closed_cases = [c for c in all_cases if c.status == CaseStatus.CERRADO]
-    return PilotProgressReport(
-        user_id=current_user.id or 0,
-        user_email=current_user.email,
-        user_full_name=current_user.full_name,
-        generated_at=_utc_now(),
-        total_cases=len(all_cases),
-        closed_cases=len(closed_cases),
-        certified_cases=certified_count,
-        avg_emotional_regulation=_avg(emotional_scores),
-        avg_listening_balance=_avg(listening_scores),
-        avg_role_play=_avg(roleplay_scores),
-        avg_advanced_score=_avg(advanced_scores),
-        zone_verde_count=zone_verde,
-        zone_amarilla_count=zone_amarilla,
-        zone_roja_count=zone_roja,
-        cases=case_items,
-    )
-
-
-@app.post("/api/experience-feedback", response_model=ExperienceFeedbackRead)
-def submit_experience_feedback(
-    payload: ExperienceFeedbackInput,
-    session: Session = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-) -> ExperienceFeedbackRead:
-    feedback = ExperienceFeedback(
-        user_id=current_user.id,
-        case_id=payload.case_id,
-        experience_level=payload.experience_level,
-        ux_mode=payload.ux_mode,
-        ease_of_use_score=payload.ease_of_use_score,
-        usefulness_score=payload.usefulness_score,
-        emotional_relevance_score=payload.emotional_relevance_score,
-        comment=payload.comment,
-    )
-    session.add(feedback)
-    session.commit()
-    session.refresh(feedback)
-    return ExperienceFeedbackRead.model_validate(feedback.model_dump())
-
 
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):

@@ -1,6 +1,6 @@
-# RB Strategic Framework
+# rodrigoborgia.com
 
-Plataforma de entrenamiento para negociaciones estratégicas con análisis visual y feedback automatizado.
+Sitio web / landing pages para el mejor entrenador del mundo en temas de negociación, ventas y liderazgo, que potencia sus entrenamientos con IA.
 
 ## Stack
 
@@ -14,13 +14,3 @@ Plataforma de entrenamiento para negociaciones estratégicas con análisis visua
 **Backend:**
 
 - FastAPI (Python)
-- SQLModel + SQLite
-- OpenAI API integration
-
-## Features
-
-- Preparación y análisis de negociaciones
-- Dashboards estratégicos visuales
-- Feedback automatizado
-- PDF generation
-- Demo mode con casos precargados

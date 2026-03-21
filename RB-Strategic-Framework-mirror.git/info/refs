@@ -1,9 +1,0 @@
-3fd476d82f727f0a58cbab4d83abf6857760080f	refs/heads/main
-76e2eb799a033ffcded09bd9d34d0084c683eabc	refs/remotes/origin/HEAD
-a350302a52c6e2eb93b1d7390811e727a19ff6ed	refs/remotes/origin/dependabot/npm_and_yarn/frontend/main/frontend-minor-3db88240b2
-0d9e1a09661997986e77613e2938fa9fde7ca7a0	refs/remotes/origin/dependabot/npm_and_yarn/frontend/main/types/node-25.5.0
-01be6a27c7913361e7998ec19a94c8dd230b0eed	refs/remotes/origin/dependabot/npm_and_yarn/frontend/main/vite-8.0.0
-70fa68fac86b836ba730b0f72fc89622d25e4b6b	refs/remotes/origin/dependabot/npm_and_yarn/frontend/main/vitejs/plugin-react-6.0.1
-c9563f42e25414a7bbf9f1bbf234fe06c1107675	refs/remotes/origin/dependabot/pip/backend/main/backend-minor-b1b381dfca
-98d132e8989265b391dac4373ce8bd8c7e936441	refs/remotes/origin/dependabot/pip/backend/main/openai-2.28.0
-76e2eb799a033ffcded09bd9d34d0084c683eabc	refs/remotes/origin/main

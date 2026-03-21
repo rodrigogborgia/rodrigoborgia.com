@@ -1,9 +1,0 @@
-{
-  "extends": "./tsconfig.app.json",
-  "compilerOptions": {
-    "types": ["jest", "node"],
-    "noEmit": true
-  },
-  "include": ["src", "src/__tests__", "setupTests.js"],
-  "exclude": []
-}
