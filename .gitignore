@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+.env
+backend/.env
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+frontend/coverage/
+
+# Local DB
+*.db
+
+# OS
+.DS_Store
+backend/app/static/videos/Testimonio Carolina.mp4
+backend/app/static/videos/Testimonio Melina.mp4
+backend/app/static/videos/Testimonio Rony.mp4
