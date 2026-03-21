@@ -1,6 +1,6 @@
 import React, { useState, type FormEvent } from "react";
-import { trackEvent, trackError, trackWhatsappLead } from "./lib/analytics";
-import { api } from "./lib/api";
+// import { trackEvent, trackError, trackWhatsappLead } from "./lib/analytics";
+// import { api } from "./lib/api";
 import brandLogo from "./assets/rb-logo.svg";
 import Testimonials from "./components/Testimonials";
 // import { trackAsesoriaSubmitted } from "./lib/analytics";
@@ -13,21 +13,21 @@ export default function PDFLanding() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  React.useEffect(() => {
-    if (success) {
-      if (typeof window !== 'undefined') {
-        if ((window as any).gtag) {
-          (window as any).gtag('event', 'pdf_download_success', {
-            'event_category': 'conversion',
-            'event_label': 'Protocolo Negociacion Presion'
-          });
-        }
-        if ((window as unknown as { fbq?: (...args: unknown[]) => void }).fbq) {
-          (window as unknown as { fbq: (...args: unknown[]) => void }).fbq('track', 'Lead', { content_name: 'Protocolo PDF' });
-        }
-      }
-    }
-  }, [success]);
+  // React.useEffect(() => {
+  //   if (success) {
+  //     if (typeof window !== 'undefined') {
+  //       if ((window as any).gtag) {
+  //         (window as any).gtag('event', 'pdf_download_success', {
+  //           'event_category': 'conversion',
+  //           'event_label': 'Protocolo Negociacion Presion'
+  //         });
+  //       }
+  //       if ((window as unknown as { fbq?: (...args: unknown[]) => void }).fbq) {
+  //         (window as unknown as { fbq: (...args: unknown[]) => void }).fbq('track', 'Lead', { content_name: 'Protocolo PDF' });
+  //       }
+  //     }
+  //   }
+  // }, [success]);
 
   async function handleSubmitPDF(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,43 +47,16 @@ export default function PDFLanding() {
     setLoading(true);
 
     try {
-      trackEvent("pdf_download_initiated", {
-        pdf_name: "si_te_calentas_perdes",
-        user_name: name.trim(),
-      });
+      // trackEvent y api removidos por limpieza
 
-      await api.pdfDownload(
-        name.trim(),
-        email.trim().toLowerCase(),
-        "si_te_calentas_perdes",
-      );
-
-      trackEvent("pdf_download_success", {
-        pdf_name: "si_te_calentas_perdes",
-        user_name: name.trim(),
-      });
-
-      // Meta Pixel - Lead conversion
-      if (typeof window !== 'undefined' && (window as unknown as { fbq?: (...args: unknown[]) => void }).fbq) {
-        (window as unknown as { fbq: (...args: unknown[]) => void }).fbq('track', 'Lead', {
-          content_name: 'si_te_calentas_perdes',
-          content_category: 'pdf_download',
-          value: 0,
-          currency: 'USD'
-        });
-      }
-
+      // trackEvent y fbq removidos por limpieza
       setSuccess(true);
       setName("");
       setEmail("");
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Error al procesar tu solicitud. Por favor intentá de nuevo.";
       setError(errorMessage);
-      trackEvent("pdf_download_error", {
-        pdf_name: "si_te_calentas_perdes",
-        error_message: errorMessage,
-      });
-      trackError("pdf_download_error", errorMessage);
+      // trackEvent y trackError removidos por limpieza
       // eslint-disable-next-line no-console
       console.error("Error al enviar formulario PDF:", err);
     } finally {
@@ -92,17 +65,7 @@ export default function PDFLanding() {
   }
 
   function handleScheduleConsultation() {
-    trackWhatsappLead("pdf_landing_consultation", "pdf_cta");
-
-    // Meta Pixel - Contact conversion
-    if (typeof window !== 'undefined' && (window as unknown as { fbq?: (...args: unknown[]) => void }).fbq) {
-      (window as unknown as { fbq: (...args: unknown[]) => void }).fbq('track', 'Contact', {
-        content_name: 'consultation_request',
-        content_category: 'pdf_landing'
-      });
-    }
-
-    // Redirige a WhatsApp
+    // trackWhatsappLead y fbq removidos por limpieza
     window.location.href = "https://api.whatsapp.com/send?phone=5493416087362&text=Hola%20Rodrigo%2C%20acabo%20de%20descargar%20el%20PDF%20y%20me%20gustar%C3%ADa%20conversar%20sobre%20una%20negociaci%C3%B3n%20que%20tengo%20por%20delante.";
   }
 

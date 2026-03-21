@@ -10,8 +10,8 @@ import {
   MetodoBorgiaSection,
   SectionDivider,
 } from "./components/LandingBlocks";
-import TestimonialsCombo from "./components/testimonials/TestimonialsCombo";
-import LongTestimonialsSection from "./components/testimonials/LongTestimonialsSection";
+// import TestimonialsCombo from "./components/testimonials/TestimonialsCombo";
+// import LongTestimonialsSection from "./components/testimonials/LongTestimonialsSection";
 import { CaseStoryBlock } from "./components/AuthorityBlocks";
 
 function useFadeInOnScroll(ref: React.RefObject<HTMLDivElement | null>) {
@@ -42,14 +42,8 @@ const FinalCtaBlock = () => (
       target="_blank"
       rel="noopener noreferrer"
       className="cta-btn"
-      onClick={() => {
-        if (typeof window !== 'undefined' && window.gtag) {
-          window.gtag('event', 'lead_captured_asesoria', {
-            'event_category': 'conversion',
-            'event_label': 'Diagnóstico BorgIA'
-          });
-        }
-      }}
+      // onClick de analytics removido por limpieza
+      onClick={() => {}}
     >
       Quiero mi diagnóstico gratis
     </a>

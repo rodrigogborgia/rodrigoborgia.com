@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { trackEvent } from "../lib/analytics";
+// import { trackEvent } from "../lib/analytics";
 
 type PathType = "protocolo-48h" | "asesoria-equipos" | "plataforma-demo" | null;
 
@@ -13,24 +13,17 @@ export default function PathSelector({ onSelectPath }: PathSelectorProps) {
 
   const handleAnswer = (answer: "yes" | "no", path?: PathType) => {
     if (answer === "yes" && path) {
-      trackEvent("path_selector_completed", {
-        step,
-        selected_path: path,
-        answer: "yes",
-      });
+      // trackEvent removido por limpieza
       setSelectedPath(path);
       onSelectPath(path);
     } else {
-      trackEvent("path_selector_step_answered", {
-        step,
-        answer: "no",
-      });
+      // trackEvent removido por limpieza
       setStep(step + 1);
     }
   };
 
   const resetQuiz = () => {
-    trackEvent("path_selector_reset");
+    // trackEvent removido por limpieza
     setStep(1);
     setSelectedPath(null);
     onSelectPath(null);
@@ -52,9 +45,7 @@ export default function PathSelector({ onSelectPath }: PathSelectorProps) {
               <button
                 className="btn-primary"
                 onClick={() => {
-                  trackEvent("protocolo_48h_cta_clicked", {
-                    source: "path_selector",
-                  });
+                  // trackEvent removido por limpieza
                   onSelectPath("protocolo-48h");
                 }}
               >
@@ -78,9 +69,7 @@ export default function PathSelector({ onSelectPath }: PathSelectorProps) {
               <button
                 className="btn-primary"
                 onClick={() => {
-                  trackEvent("asesoria_equipos_cta_clicked", {
-                    source: "path_selector",
-                  });
+                  // trackEvent removido por limpieza
                   onSelectPath("asesoria-equipos");
                 }}
               >
@@ -103,7 +92,7 @@ export default function PathSelector({ onSelectPath }: PathSelectorProps) {
               <button
                 className="btn-primary"
                 onClick={() => {
-                  trackEvent("demo_cta_clicked", { source: "path_selector" });
+                  // trackEvent removido por limpieza
                   onSelectPath("plataforma-demo");
                 }}
               >

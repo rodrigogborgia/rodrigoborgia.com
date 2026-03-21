@@ -1,6 +1,6 @@
 import React, { useState, type FormEvent } from "react";
-import { trackEvent, trackError } from "../lib/analytics";
-import { api } from "../lib/api";
+// import { trackEvent, trackError } from "../lib/analytics";
+// import { api } from "../lib/api";
 import "../pdf-modal.css";
 
 export function PDFModal({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -26,30 +26,14 @@ export function PDFModal({ open, onClose }: { open: boolean; onClose: () => void
     setError("");
     setLoading(true);
     try {
-      trackEvent("pdf_download_initiated", {
-        pdf_name: "si_te_calentas_perdes",
-        user_name: name.trim(),
-      });
-      await api.pdfDownload(
-        name.trim(),
-        email.trim().toLowerCase(),
-        "si_te_calentas_perdes",
-      );
-      trackEvent("pdf_download_success", {
-        pdf_name: "si_te_calentas_perdes",
-        user_name: name.trim(),
-      });
+      // trackEvent y api removidos por limpieza
       setSuccess(true);
       setName("");
       setEmail("");
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : "Error al procesar tu solicitud. Por favor intentá de nuevo.";
       setError(errorMessage);
-      trackEvent("pdf_download_error", {
-        pdf_name: "si_te_calentas_perdes",
-        error_message: errorMessage,
-      });
-      trackError("pdf_download_error", errorMessage);
+      // trackEvent y trackError removidos por limpieza
     } finally {
       setLoading(false);
     }
