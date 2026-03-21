@@ -97,12 +97,8 @@ export default function PDFLanding() {
             <a
               href="#download-form"
               className="pdf-btn-primary"
-              onClick={() =>
-                trackEvent("pdf_download_cta_clicked", {
-                  source: "hero",
-                  pdf_name: "si_te_calentas_perdes",
-                })
-              }
+              // onClick de analytics removido por limpieza
+              onClick={() => {}}
             >
               Descargar el documento
             </a>
