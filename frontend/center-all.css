@@ -1,0 +1,4 @@
+/* Universal centering for all main text elements */
+body, .landing-main, .hero-section, .storytelling-section, .lead-magnet-section, .contact-section, .metodo-borgia-section, .authority-block, .case-story-block, .cta-final-block, .claim-block, .counter-label, h1, h2, h3, h4, h5, h6, p, ul, ol, li, span, a {
+  text-align: center !important;
+}

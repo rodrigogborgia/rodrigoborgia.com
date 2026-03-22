@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>¡Gracias por tu registro! | Rodrigo Borgia</title>
+    <meta name="robots" content="noindex, nofollow" />
+    <meta name="description" content="Gracias por registrarte. Pronto recibirás el PDF y tips exclusivos para negociar bajo presión." />
+    <meta name="theme-color" content="#000000" />
+    <link rel="icon" type="image/svg+xml" href="logos/rb-logo.svg" />
+    <link rel="apple-touch-icon" href="logos/rb-logo.svg" />
+    <link rel="canonical" href="https://rodrigoborgia.com/gracias" />
+    <link rel="stylesheet" href="index.css" />
+    <style>
+      body {
+        background: #181c23;
+        color: #fff;
+        font-family: 'Inter', Arial, sans-serif;
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .gracias-container {
+        background: #23272f;
+        border-radius: 16px;
+        box-shadow: 0 4px 24px 0 #0008;
+        padding: 2.5rem 2rem 2rem 2rem;
+        max-width: 420px;
+        width: 100%;
+        text-align: center;
+        margin: 2rem auto;
+      }
+      .gracias-icon {
+        font-size: 3rem;
+        color: #a3e635;
+        margin-bottom: 1rem;
+      }
+      .gracias-title {
+        font-size: 2rem;
+        font-weight: 700;
+        margin-bottom: 0.5rem;
+        color: #D4AF37;
+      }
+      .gracias-text {
+        font-size: 1.1rem;
+        margin-bottom: 1.5rem;
+        color: #fff;
+      }
+      .gracias-subtext {
+        font-size: 1rem;
+        color: #a3e635;
+        margin-bottom: 0.5rem;
+      }
+      .gracias-link {
+        color: #D4AF37;
+        text-decoration: underline;
+        font-weight: 500;
+      }
+    </style>
+  </head>
+  <body>
+    <script>
+      // Dispara evento de Analytics al cargar la página de gracias
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('event', 'pdf_download_success', {
+        'event_category': 'conversion',
+        'event_label': 'PDF descargado',
+        'value': 1
+      });
+    </script>
+    <main class="gracias-container">
+      <div class="gracias-icon">✓</div>
+      <h1 class="gracias-title">¡Gracias!</h1>
+      <div class="gracias-text">
+        Pronto vas a recibir el PDF y tips exclusivos para mejorar tus negociaciones.<br />
+        Revisá tu correo electrónico.
+      </div>
+      <div class="gracias-subtext">
+        Si no ves el email en unos minutos, revisá tu carpeta de spam o promociones.
+      </div>
+      <a class="gracias-link" href="/">Volver al inicio</a>
+    </main>
+  </body>
+</html>

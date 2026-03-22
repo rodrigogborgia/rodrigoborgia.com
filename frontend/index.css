@@ -1,6 +1,16 @@
+/* Secciones fade-in premium */
+.section-fade {
+  background: linear-gradient(120deg, #181c23 0%, #1a1a1a 80%, #d4af37 100%);
+  border-radius: 18px;
+  box-shadow: 0 2px 16px 0 #80002033, 0 4px 24px #d4af3733;
+  margin-bottom: 40px;
+  padding: 36px 24px;
+  position: relative;
+  border: 2px solid #d4af37;
+}
 body {
   font-family: "Inter", "Segoe UI", Arial, sans-serif;
-  background: linear-gradient(135deg, #1a1a1a 0%, #181c23 60%, #800020 100%);
+  background: #181c23;
   /* Metalic overlay */
   position: relative;
   body {
@@ -32,9 +42,9 @@ body {
   padding: 0;
 }
 .landing-main {
-  max-width: 720px;
+  max-width: 100vw;
   margin: 0 auto;
-  padding: 48px 16px 80px 16px;
+  padding: 6px;
 }
 .hero-section,
 .storytelling-section,
@@ -247,12 +257,20 @@ body {
   margin-bottom: 32px;
   padding: 32px 24px;
 }
+
+.metodo-borgia-section,
+.metodo-borgia-section h2,
+.metodo-borgia-section ul,
+.metodo-borgia-section li,
+.metodo-borgia-section .metodo-meta {
+  color: #e2e8ef !important;
+}
 .hero-section h1,
 .lead-magnet-section h2,
 .authority-block h2,
 .case-story-block h3,
 .cta-final-block h2 {
-  color: #fff;
+  color: #e2e8ef;
   font-size: 2rem;
   margin-bottom: 12px;
 }
@@ -270,9 +288,19 @@ body {
   display: flex;
   gap: 32px;
   margin: 24px 0 16px 0;
+  justify-content: center;
 }
 .counter-block {
   text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+@media (max-width: 700px) {
+  .authority-counters {
+    flex-direction: column;
+    gap: 16px;
+  }
+}
 }
 .counter-value {
   font-size: 2.5rem;
@@ -397,20 +425,6 @@ body {
   opacity: 0.7;
 }
 
-.claim-block {
-  background: #1e2d26;
-  color: #fff;
-  font-size: 1.4rem;
-  font-weight: 800;
-  border-radius: 18px;
-  padding: 24px 32px 32px 32px;
-  margin: 32px auto;
-  box-shadow: 0 4px 24px #3b82f644;
-  text-align: center;
-  max-width: 900px;
-  letter-spacing: 0.02em;
-  position: relative;
-}
 
 .cta-btn,
 .lead-magnet-section .cta-btn {
@@ -487,26 +501,100 @@ body {
   color: #61a5fa;
 }
 
-/* Claim blocks for repetition */
+/* --- HERO SECTION (única definición) --- */
+.hero-section {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0;
+  background: #181c23;
+  border: 3px solid #d4af37;
+  border-radius: 18px;
+  box-shadow: 0 0 24px 0 #d4af3733;
+  padding: 40px 24px 32px 24px;
+  margin: 48px auto 32px auto;
+  max-width: 540px;
+}
+.hero-section h1 {
+  color: #61a5fa;
+  font-size: 2.2rem;
+  margin-bottom: 24px;
+  font-weight: 900;
+  letter-spacing: -1px;
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  box-shadow: none;
+  display: block;
+  border: none;
+  text-shadow: 0 2px 8px #181c23cc;
+  text-align: center;
+}
+/* Unified .claim-block for hero claim and Brevo form */
 .claim-block {
-  background: #1a2236;
-  color: #fff;
-  font-size: 1.4rem;
+  background: #181c23;
+  color: #e2e8ef;
+  font-size: 1.25rem;
   font-weight: 800;
   border-radius: 18px;
-  padding: 24px 32px 32px 32px;
-  margin: 32px auto;
-  box-shadow: 0 4px 24px #3b82f644;
+  padding: 32px 32px 32px 32px;
+  margin: 32px auto 18px auto;
+  box-shadow: 0 4px 24px #d4af3744;
   text-align: center;
+  max-width: 540px;
+  border: 3px solid #d4af37;
+  letter-spacing: 0.01em;
+  position: relative;
+  overflow: visible;
+}
+
+/* Ensure Brevo form fits inside claim-block and does not overflow */
+#sib-form-container-static, #sib-container {
+  max-width: 100% !important;
+  margin: 0 auto !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+#sib-form {
+  width: 100% !important;
+  margin: 0 auto !important;
+}
+.hero-cta .cta-btn {
+  background: #61a5fa;
+  color: #181c23;
+  font-weight: 700;
+  border-radius: 12px;
+  padding: 18px 36px;
+  font-size: 1.15rem;
+  box-shadow: 0 2px 16px #61a5fa55;
+  border: none;
+  margin: 24px auto 0 auto;
+  display: block;
+  width: 90%;
+  text-align: center;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+}
+.hero-cta .cta-btn:hover {
+  background: #3b82f6;
+  color: #fff;
+}
+.hero-secondary-claim {
+  text-align: center;
+  color: #e2e8ef;
+  font-size: 1.05rem;
+  font-weight: 500;
+  margin-bottom: 8px;
+}
   max-width: 900px;
   letter-spacing: 0.02em;
   position: relative;
 }
 
 .cta-btn,
-.lead-magnet-section .cta-btn {
   background: #3b82f6;
-  color: #fff;
+  color: #e2e8ef;
   font-weight: 700;
   border-radius: 14px;
   padding: 18px 36px;
@@ -549,6 +637,9 @@ body {
   font-size: 2rem;
   font-weight: 900;
   margin-bottom: 18px;
+}
+.storytelling-section h2 {
+  color: #61a5fa;
 }
 
 .lead-magnet-section p,

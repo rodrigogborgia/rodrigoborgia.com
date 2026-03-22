@@ -1,27 +1,20 @@
-#!/bin/bash
+#!/bin/sh
+# Minimal script to serve static files from the current directory on port 8080
 
-# Kill any process using port 8000 (backend)
-echo "Cerrando procesos en puerto 8000..."
-fuser -k 8000/tcp 2>/dev/null || lsof -ti:8000 | xargs kill -9 2>/dev/null
+PORT=8080
+FRONTEND_DIR="frontend"
 
-# Install backend dependencies
-echo "Instalando dependencias del backend (pip)..."
-cd backend || exit 1
-pip install --upgrade pip
-pip install -r requirements.txt || { echo "Fallo la instalación de dependencias del backend"; exit 1; }
-cd ..
+if [ ! -d "$FRONTEND_DIR" ]; then
+	echo "Error: No se encontró el directorio '$FRONTEND_DIR'."
+	exit 1
+fi
 
-# Start backend (FastAPI)
-echo "Iniciando backend (FastAPI en puerto 8000)..."
-cd backend || exit 1
-nohup uvicorn app.main:app --reload --port 8000 > ../backend.log 2>&1 &
-cd ..
+cd "$FRONTEND_DIR" || exit 1
 
-# Install frontend dependencies
-echo "Instalando dependencias del frontend (npm)..."
-cd frontend || exit 1
-npm install || { echo "Fallo la instalación de dependencias del frontend"; exit 1; }
-
-# Start frontend (Vite)
-echo "Iniciando frontend (Vite en puerto 5173)..."
-npm run dev
+if command -v python3 >/dev/null 2>&1; then
+	echo "Serving static files from '$FRONTEND_DIR' at http://localhost:$PORT"
+	python3 -m http.server "$PORT"
+else
+	echo "Error: python3 is not installed. Please install Python 3 to use this script."
+	exit 1
+fi

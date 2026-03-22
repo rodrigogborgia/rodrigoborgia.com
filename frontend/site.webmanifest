@@ -9,7 +9,7 @@
   "lang": "es",
   "icons": [
     {
-      "src": "/rb-logo.svg",
+      "src": "logos/rb-logo.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

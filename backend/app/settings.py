@@ -31,12 +31,6 @@ _load_env_files()
 @dataclass(frozen=True)
 class Settings:
     brevo_api_key: str = os.getenv("BREVO_API_KEY", "")
-    brevo_list_id: int = int(os.getenv("BREVO_LIST_ID", "3"))
-    brevo_interest_attribute: str = os.getenv("BREVO_INTEREST_ATTRIBUTE", "PREOCUPACION_NEGOCIACION")
-    brevo_source_attribute: str = os.getenv("BREVO_SOURCE_ATTRIBUTE", "LEAD_SOURCE")
-    brevo_sender_name: str = os.getenv("BREVO_SENDER_NAME", "RB Strategic Framework")
-    brevo_sender_email: str = os.getenv("BREVO_SENDER_EMAIL", "hola@rodrigoborgia.com")
-    public_lead_notification_email: str = os.getenv("PUBLIC_LEAD_NOTIFICATION_EMAIL", "hola@rodrigoborgia.com")
     frontend_origins: tuple[str, ...] = tuple(
         origin.strip()
         for origin in os.getenv(
