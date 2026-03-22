@@ -1,3 +1,14 @@
+# Mantener solo los minificados y recursos finales
+frontend/*.css
+!frontend/*.min.css
+frontend/*.js
+!frontend/*.min.js
+
+# Archivos y carpetas locales/temporales
+.DS_Store
+backend.log
+.venv/
+node_modules/
 # Python
 __pycache__/
 *.pyc
