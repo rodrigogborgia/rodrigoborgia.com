@@ -1,30 +1,24 @@
 
-from fastapi import FastAPI, HTTPException
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
 from .settings import settings
 
 app = FastAPI()
 
-# CORS for frontend
+# CORS configuration (ready for future use)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.frontend_cors_origins,
+    allow_origins=list(settings.frontend_origins),
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Static files (optional, if needed for frontend)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-
-# --- Schemas ---
-
-# --- Endpoints ---
+# Minimal health check endpoint
 @app.get("/api/health")
 def health_check():
-    return {"status": "ok", "message": "API is running"}
+    return {"status": "ok"}
 
 @app.post("/api/public/leads/contact", response_model=PublicLeadCaptureResponse)
 def capture_public_lead(payload: PublicLeadCaptureInput):
