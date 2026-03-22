@@ -11,6 +11,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Instalar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar clean-css-cli y terser
+        run: |
+          npm install -g clean-css-cli terser
+
+      - name: Minificar CSS y JS originales
+        run: |
+          cleancss -o frontend/index.min.css frontend/index.css
+          cleancss -o frontend/animations.min.css frontend/animations.css
+          cleancss -o frontend/center-all.min.css frontend/center-all.css
+          terser frontend/scroll-fade.js -o frontend/scroll-fade.min.js
+
 
       - name: Deploy static frontend via SSH
         uses: appleboy/ssh-action@v1.0.3
