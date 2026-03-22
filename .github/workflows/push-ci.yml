@@ -6,9 +6,9 @@ on:
       - main
 
 jobs:
-  env:
-    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   release-main:
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
