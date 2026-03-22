@@ -19,18 +19,7 @@ jobs:
       - name: Install backend dependencies
         run: pip install -r backend/requirements.txt
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install frontend dependencies
-        run: npm ci
-        working-directory: frontend
-
-      - name: Build frontend
-        run: VITE_API_URL=https://rodrigoborgia.com npm run build
-        working-directory: frontend
+      # Node.js steps removed: frontend is now static HTML/CSS
 
       - name: Deploy to server via SSH
         uses: appleboy/ssh-action@v1.0.3
@@ -60,11 +49,8 @@ jobs:
               fi
               sleep 1
             done
-            cd frontend
-            npm ci
-            VITE_API_URL=https://rodrigoborgia.com npm run build
             sudo rm -rf /var/www/html/*
-            sudo cp -r dist/* /var/www/html/
+            sudo cp -r frontend/* /var/www/html/
             sudo chown -R www-data:www-data /var/www/html
             sudo systemctl reload nginx
 
