@@ -1,3 +1,16 @@
+    <style>
+    .flash-cupos {
+      animation: flash-cupos-anim 1.2s 2;
+    }
+    @keyframes flash-cupos-anim {
+      0% { background: none; color: #d4af37; }
+      20% { background: #fffbe6; color: #181c23; }
+      40% { background: #fffbe6; color: #181c23; }
+      60% { background: none; color: #d4af37; }
+      80% { background: #fffbe6; color: #181c23; }
+      100% { background: none; color: #d4af37; }
+    }
+    </style>
 <!doctype html>
 <html lang="es">
   <head>
@@ -570,100 +583,109 @@
           </span>
         </div>
         <div style="margin-top:18px;">
-          <a href="#sib-form-container-static" class="cta-btn" style="font-size:1.2rem; font-weight:900; background:#61a5fa; color:#181c23; border-radius:8px; padding:16px 32px; text-decoration:none; box-shadow:0 2px 12px #61a5fa44; display:inline-block;">
-            Solicitar diagnóstico ejecutivo
-          </a>
+          <button onclick="scrollToBrevoForm()" class="cta-btn" style="font-size:1.2rem; font-weight:900; background:#61a5fa; color:#181c23; border-radius:8px; padding:16px 32px; text-decoration:none; box-shadow:0 2px 12px #61a5fa44; display:inline-block; cursor:pointer;">
+            Pedí tu guía “Si te calentás, perdés” y negociá como nunca en tu vida
+          </button>
+            <script>
+            // Scroll suave al formulario Brevo
+            function scrollToBrevoForm() {
+              const form = document.getElementById('sib-form-container-static');
+              if (form) {
+                form.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }
+            </script>
         </div>
       </section>
 
       <!-- NUEVA SECCIÓN: TESTIMONIOS/PRUEBA SOCIAL (Launch-style) -->
       <!-- NUEVA SECCIÓN: TESTIMONIOS/PRUEBA SOCIAL (Launch-style) -->
       <section class="section-fade">
-        <h2 style="color:#61a5fa; font-size:1.7rem; font-weight:900; text-align:center; margin-bottom:18px;">Testimonios de directores y empresas</h2>
-        <div class="testimonials-accordion" style="max-width:700px; margin:0 auto; text-align:center;">
+        <h2 style="color:#61a5fa; font-size:1.7rem; font-weight:900; text-align:center; margin-bottom:18px; width:100%;">Testimonios de directores y empresas</h2>
+        <div class="testimonials-accordion" style="max-width:700px; margin:0 auto; text-align:center; display:flex; flex-direction:column; align-items:center;">
           <!-- Testimonio Veolia -->
-          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center;">
-            <div style="display:flex; align-items:center; gap:16px;">
+          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center; width:100%;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:10px; width:100%;">
               <img src="logos/veolia.webp" alt="Veolia" style="height:40px; width:auto; background:#fff; border-radius:6px; padding:4px;" loading="lazy" />
               <div>
                 <strong style="color:#d4af37;">Victoria Acosta</strong><br>
                 <span style="color:#e2e8ef; font-size:0.98rem;">Gerente Senior de Relaciones Institucionales y Marketing, Veolia</span>
               </div>
-              <button class="testimonial-toggle" style="margin-left:auto; background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer;">Leer</button>
+              <button class="testimonial-toggle" style="background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer; margin:0 auto; display:block;">Leer</button>
             </div>
-            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem;">Fue un gusto contar con tu colaboración. El proceso de elaboración del taller fue muy profesional, supiste entender muy bien nuestra necesidad y ajustarte a la agenda desafiante que teníamos. Los resultados fueron muy buenos: cumplimos el doble objetivo de sorprender con la dinámica y de llegar a resultados muy interesantes.</div>
+            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem; text-align:center;">Fue un gusto contar con tu colaboración. El proceso de elaboración del taller fue muy profesional, supiste entender muy bien nuestra necesidad y ajustarte a la agenda desafiante que teníamos. Los resultados fueron muy buenos: cumplimos el doble objetivo de sorprender con la dinámica y de llegar a resultados muy interesantes.</div>
           </div>
           <!-- Testimonio Vasser -->
-          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center;">
-            <div style="display:flex; align-items:center; gap:16px;">
+          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center; width:100%;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:10px; width:100%;">
               <img src="logos/vasser.svg" alt="Vasser" style="height:40px; width:auto; background:#fff; border-radius:6px; padding:4px;" loading="lazy" />
               <div>
                 <strong style="color:#61a5fa;">Paula Mattiello</strong><br>
                 <span style="color:#e2e8ef; font-size:0.98rem;">Chief Branding Officer, Vasser</span>
               </div>
-              <button class="testimonial-toggle" style="margin-left:auto; background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer;">Leer</button>
+              <button class="testimonial-toggle" style="background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer; margin:0 auto; display:block;">Leer</button>
             </div>
-            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem;">¡Gracias Rodrigo por acercarnos la posibilidad de abordar el trabajo el equipo inter áreas y de una forma tan lúdica como esta! Estamos muy contentos con la jornada.</div>
+            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem; text-align:center;">¡Gracias Rodrigo por acercarnos la posibilidad de abordar el trabajo el equipo inter áreas y de una forma tan lúdica como esta! Estamos muy contentos con la jornada.</div>
           </div>
           <!-- Testimonio Bremen -->
-          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center;">
-            <div style="display:flex; align-items:center; gap:16px;">
+          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center; width:100%;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:10px; width:100%;">
               <img src="logos/bremen tools.png" alt="Bremen" style="height:40px; width:auto; background:#fff; border-radius:6px; padding:4px;" loading="lazy" />
               <div>
                 <strong style="color:#e2e8ef;">Jálid Del Azar</strong><br>
                 <span style="color:#e2e8ef; font-size:0.98rem;">Gerente General, Bremen Tools</span>
               </div>
-              <button class="testimonial-toggle" style="margin-left:auto; background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer;">Leer</button>
+              <button class="testimonial-toggle" style="background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer; margin:0 auto; display:block;">Leer</button>
             </div>
-            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem;">La experiencia con Rodrigo ha sido un gran aporte para el equipo de BREMEN. La dinámica logra un clima en el que surgen gran cantidad de oportunidades para trabajar los distintos aspectos de las relaciones.</div>
+            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem; text-align:center;">La experiencia con Rodrigo ha sido un gran aporte para el equipo de BREMEN. La dinámica logra un clima en el que surgen gran cantidad de oportunidades para trabajar los distintos aspectos de las relaciones.</div>
           </div>
           <!-- Testimonio SAP -->
-          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center;">
-            <div style="display:flex; align-items:center; gap:16px;">
+          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center; width:100%;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:10px; width:100%;">
               <img src="logos/SAP.jpeg" alt="SAP" style="height:40px; width:auto; background:#fff; border-radius:6px; padding:4px;" loading="lazy" />
               <div>
                 <strong style="color:#61a5fa;">Claudio Goldfarb</strong><br>
                 <span style="color:#e2e8ef; font-size:0.98rem;">Channel Development Manager, SAP</span>
               </div>
-              <button class="testimonial-toggle" style="margin-left:auto; background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer;">Leer</button>
+              <button class="testimonial-toggle" style="background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer; margin:0 auto; display:block;">Leer</button>
             </div>
-            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem;">Realizamos un taller LEGO® SERIOUS PLAY® que nos ayudó a poner en práctica nuestra estrategia comercial para el equipo de partners de la región. Ahora puedo contar que innovar y entretenerse van de la mano!.</div>
+            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem; text-align:center;">Realizamos un taller LEGO® SERIOUS PLAY® que nos ayudó a poner en práctica nuestra estrategia comercial para el equipo de partners de la región. Ahora puedo contar que innovar y entretenerse van de la mano!.</div>
           </div>
           <!-- Testimonio PWC -->
-          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center;">
-            <div style="display:flex; align-items:center; gap:16px;">
+          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center; width:100%;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:10px; width:100%;">
               <img src="logos/pwc.jpeg" alt="PWC" style="height:40px; width:auto; background:#fff; border-radius:6px; padding:4px;" loading="lazy" />
               <div>
                 <strong style="color:#a3e635;">Diego Gonzáles</strong><br>
                 <span style="color:#e2e8ef; font-size:0.98rem;">Manager | Human Capital Escuela de Negocios, PWC</span>
               </div>
-              <button class="testimonial-toggle" style="margin-left:auto; background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer;">Leer</button>
+              <button class="testimonial-toggle" style="background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer; margin:0 auto; display:block;">Leer</button>
             </div>
-            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem;">El Taller que realizamos junto a Gamifica ha sido un éxito preparando a la gente para el desafío que tenía por delante, predisponiéndolos y comprometiéndolos de otra manera y disminuyendo la rotación en un segmento clave para el área.</div>
+            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem; text-align:center;">El Taller que realizamos junto a Gamifica ha sido un éxito preparando a la gente para el desafío que tenía por delante, predisponiéndolos y comprometiéndolos de otra manera y disminuyendo la rotación en un segmento clave para el área.</div>
           </div>
           <!-- Testimonio Banco Coinag -->
-          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center;">
-            <div style="display:flex; align-items:center; gap:16px;">
+          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center; width:100%;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:10px; width:100%;">
               <img src="logos/coinag.png" alt="Banco Coinag" style="height:40px; width:auto; background:#fff; border-radius:6px; padding:4px;" loading="lazy" />
               <div>
                 <strong style="color:#d4af37;">Florencia Damonte</strong><br>
                 <span style="color:#e2e8ef; font-size:0.98rem;">Responsable de Gestión de las Personas, Banco Coinag</span>
               </div>
-              <button class="testimonial-toggle" style="margin-left:auto; background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer;">Leer</button>
+              <button class="testimonial-toggle" style="background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer; margin:0 auto; display:block;">Leer</button>
             </div>
-            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem;">Increíble experiencia la que vivimos con LEGO® SERIOUS PLAY®. ¡Aprendizaje real a través del juego! Pudimos reflexionar – en un contexto de sinceramiento – y sacar a la luz temas profundos, que se constituyen en materia prima para seguir trabajando con nuestra gente.</div>
+            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem; text-align:center;">Increíble experiencia la que vivimos con LEGO® SERIOUS PLAY®. ¡Aprendizaje real a través del juego! Pudimos reflexionar – en un contexto de sinceramiento – y sacar a la luz temas profundos, que se constituyen en materia prima para seguir trabajando con nuestra gente.</div>
           </div>
           <!-- Testimonio Nordelta -->
-          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center;">
-            <div style="display:flex; align-items:center; gap:16px;">
+          <div class="testimonial-item" style="border-bottom:1px solid #333; padding:18px 0; text-align:center; width:100%;">
+            <div style="display:flex; flex-direction:column; align-items:center; gap:10px; width:100%;">
               <img src="logos/los alisos.png" alt="Los Alisos Nordelta" style="height:40px; width:auto; background:#fff; border-radius:6px; padding:4px;" loading="lazy" />
               <div>
                 <strong style="color:#61a5fa;">Gustavo Barba</strong><br>
                 <span style="color:#e2e8ef; font-size:0.98rem;">Director, Barrio Los Alisos, Nordelta</span>
               </div>
-              <button class="testimonial-toggle" style="margin-left:auto; background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer;">Leer</button>
+              <button class="testimonial-toggle" style="background:#23272f; color:#61a5fa; border:none; font-weight:700; font-size:1rem; border-radius:6px; padding:6px 16px; cursor:pointer; margin:0 auto; display:block;">Leer</button>
             </div>
-            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem;">Lo que trabajamos con Rodrigo no fue comunicación ‘teórica’, sino entrenamiento real para situaciones de alta presión. Nuestro equipo aprendió a desactivar conflictos, sostener límites y conducir conversaciones difíciles sin escalar ni perder autoridad. Se nota claramente la diferencia entre antes y después del entrenamiento.</div>
+            <div class="testimonial-text" style="display:none; margin-top:12px; color:#e2e8ef; font-size:1.08rem; text-align:center;">Lo que trabajamos con Rodrigo no fue comunicación ‘teórica’, sino entrenamiento real para situaciones de alta presión. Nuestro equipo aprendió a desactivar conflictos, sostener límites y conducir conversaciones difíciles sin escalar ni perder autoridad. Se nota claramente la diferencia entre antes y después del entrenamiento.</div>
           </div>
         </div>
         <script>
@@ -889,9 +911,39 @@
         </div>
         <p>Reservá tu llamada estratégica gratis de 15 minutos para analizar tu caso y descubrir tu mayor oportunidad de mejora.</p>
         <a href="https://wa.me/5493416087362?text=Hola%20Rodrigo%2C%20quiero%20reservar%20mi%20llamada%20estrat%C3%A9gica%20gratuita%20para%20mejorar%20mis%20resultados%20de%20negociaci%C3%B3n." target="_blank" rel="noopener noreferrer" class="cta-btn whatsapp-cta" style="background:linear-gradient(90deg,#25d366 0%,#128c7e 100%); color:#fff;">Reservar llamada estratégica gratis</a>
-        <div class="contact-meta" style="margin-top:12px; color:#d4af37; font-weight:700;">Solo quedan 4 cupos este mes.</div>
+        <div class="contact-meta" id="cupos-meta-1" style="margin-top:12px; color:#d4af37; font-weight:700;">
+          Solo quedan <span id="cupos-counter">8</span> cupos este mes.
+        </div>
         <div class="guarantee-block" style="margin-top:18px; color:#e2e8ef; font-size:1.05rem; background:#181c23; border:2px solid #d4af37; border-radius:12px; padding:18px; max-width:480px; margin-left:auto; margin-right:auto;">Si en la primera conversación no te llevás al menos 3 ideas accionables, te regalo una sesión extra sin cargo.</div>
-        <div class="guarantee-block" style="margin-top:14px; color:#d4af37; font-size:1.08rem; background:#23272f; border:2px solid #d4af37; border-radius:12px; padding:14px; max-width:420px; margin:14px auto 0 auto; font-weight:700; letter-spacing:0.01em;">Solo quedan 4 cupos este mes.</div>
+        <div class="guarantee-block" id="cupos-meta-2" style="margin-top:14px; color:#d4af37; font-size:1.08rem; background:#23272f; border:2px solid #d4af37; border-radius:12px; padding:14px; max-width:420px; margin:14px auto 0 auto; font-weight:700; letter-spacing:0.01em;">
+          Solo quedan <span id="cupos-counter-2">8</span> cupos este mes.
+        </div>
+          <script>
+          // Contador animado de cupos
+          function animateCuposCounter(id, start, end, delay, metaId) {
+            const el = document.getElementById(id);
+            const meta = document.getElementById(metaId);
+            if (!el || !meta) return;
+            let current = start;
+            el.textContent = current;
+            function step() {
+              if (current > end) {
+                current--;
+                el.textContent = current;
+                if (current === end) {
+                  meta.classList.add('flash-cupos');
+                  setTimeout(() => meta.classList.remove('flash-cupos'), 2400);
+                }
+                setTimeout(step, delay);
+              }
+            }
+            setTimeout(step, delay);
+          }
+          document.addEventListener('DOMContentLoaded', function() {
+            animateCuposCounter('cupos-counter', 8, 3, 1200, 'cupos-meta-1');
+            animateCuposCounter('cupos-counter-2', 8, 3, 1200, 'cupos-meta-2');
+          });
+          </script>
       </section>
       <hr class="section-divider" />
       <section class="metodo-borgia-section">
