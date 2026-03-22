@@ -418,19 +418,77 @@
       </section>
       <!-- FAQ Section -->
       <section class="faq-section" style="background:#181c23; border:2px solid #61a5fa; border-radius:18px; margin:36px auto 24px auto; padding:36px 24px; max-width:600px; text-align:left; box-shadow:0 2px 16px #61a5fa44;">
-        <h2 style="color:#61a5fa; font-size:1.3rem; font-weight:900; margin-bottom:18px; text-align:center;">Preguntas frecuentes</h2>
-        <div style="color:#e2e8ef; font-size:1.08rem; font-weight:500; margin-bottom:18px;">
-          <b>¿Esto sirve para mi industria?</b><br>
-          Sí. El método se adapta a cualquier sector donde haya negociaciones de alto valor, presión de cierre o conversaciones críticas.<br><br>
-          <b>¿Cuánto tiempo lleva ver resultados?</b><br>
-          Desde la primera sesión te llevás ideas accionables. En menos de 30 días podés ver mejoras en cierres, margen y confianza.<br><br>
-          <b>¿Qué pasa si ya tengo experiencia negociando?</b><br>
-          La metodología potencia a quienes ya tienen experiencia, auditando tu criterio y preparándote para lo inesperado.<br><br>
-          <b>¿Qué incluye el diagnóstico gratis?</b><br>
-          Una conversación ejecutiva breve y personalizada para evaluar tu caso, definir riesgos, proteger margen y preparar tu próxima negociación con método.<br><br>
-          <b>¿Qué pasa si no me sirve?</b><br>
-          Si no te llevás al menos 3 ideas accionables, te regalo una sesión extra sin cargo.<br>
+        <h2 class="faq-title">Preguntas frecuentes</h2>
+        <div class="faq-accordion">
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false">
+              ¿Esto sirve para mi industria?
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer" hidden>
+              Sí. El método se adapta a cualquier sector donde haya negociaciones de alto valor, presión de cierre o conversaciones críticas.
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false">
+              ¿Cuánto tiempo lleva ver resultados?
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer" hidden>
+              Desde la primera sesión te llevás ideas accionables. En menos de 30 días podés ver mejoras en cierres, margen y confianza.
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false">
+              ¿Qué pasa si ya tengo experiencia negociando?
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer" hidden>
+              La metodología potencia a quienes ya tienen experiencia, auditando tu criterio y preparándote para lo inesperado.
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false">
+              ¿Qué incluye el diagnóstico gratis?
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer" hidden>
+              Una conversación ejecutiva breve y personalizada para evaluar tu caso, definir riesgos, proteger margen y preparar tu próxima negociación con método.
+            </div>
+          </div>
+          <div class="faq-item">
+            <button class="faq-question" aria-expanded="false">
+              ¿Qué pasa si no me sirve?
+              <span class="faq-icon">+</span>
+            </button>
+            <div class="faq-answer" hidden>
+              Si no te llevás al menos 3 ideas accionables, te regalo una sesión extra sin cargo.
+            </div>
+          </div>
         </div>
+        <script>
+        // FAQ Accordion logic
+        document.addEventListener('DOMContentLoaded', function() {
+          const faqQuestions = document.querySelectorAll('.faq-question');
+          faqQuestions.forEach(btn => {
+            btn.addEventListener('click', function() {
+              const expanded = this.getAttribute('aria-expanded') === 'true';
+              // Cierra todos
+              faqQuestions.forEach(b => {
+                b.setAttribute('aria-expanded', 'false');
+                b.parentElement.querySelector('.faq-answer').hidden = true;
+                b.querySelector('.faq-icon').textContent = '+';
+              });
+              // Abre el seleccionado si estaba cerrado
+              if (!expanded) {
+                this.setAttribute('aria-expanded', 'true');
+                this.parentElement.querySelector('.faq-answer').hidden = false;
+                this.querySelector('.faq-icon').textContent = '–';
+              }
+            });
+          });
+        });
+        </script>
       </section>
 
       <!-- NUEVA SECCIÓN: EMOTIONAL HOOKS & EDUCATIONAL BULLETS (Launch-style) -->
@@ -442,22 +500,21 @@
           <div style="margin-bottom:8px;">La presión, el ego y el miedo a perder pueden costar mucho más que unos minutos de incomodidad.</div>
           <div style="margin-bottom:8px;">La claridad bajo presión <b>se entrena</b>, no es innata.</div>
           <div>El Método BorgIA te prepara para <span style="color:#61a5fa;">proteger tu margen y tu autoridad</span> en cada conversación crítica.</div>
-        </div>
-        <div style="text-align:center; margin-top:24px;">
-          <div id="sib-form-container-static">
-            <div id="sib-container" class="sib-container--large sib-container--vertical" style="text-align:center; background-color:rgba(15,17,23,1); max-width:540px; border-radius:3px; border-width:1px; border-color:#C0CCD9; border-style:solid; direction:ltr; margin: 0 auto;">
-              <form id="sib-form" method="POST" action="https://cc06350b.sibforms.com/serve/MUIFAMQCsZgUoapq_5kMweYNRwR04d_hOuy3cN0W4LX4LLHpHnIECh_JNMoEgQHTX5uNGQUPYVeKkAaqUWIc9Ja6Tf81eEcF1zP0xC4OIxz6SMq8-V5mvH1BacS97CEl6_N6TlI33k5JXg-Y5jIvThrS7KnBka64Dw13toyAUYzkDW2tQYkZmAwng6I-pkBGI0C1pPvumnIr8BWgkQ==" data-type="subscription">
-                <div style="padding: 8px 0;">
-                  <div class="sib-form-block" style="font-size:16px; text-align:left; font-family:Helvetica, sans-serif; color:#ffffff; background-color:transparent; text-align:left">
-                    <div class="sib-text-form-block">
-                      <p>Dejame tu nombre y email para recibir el PDF + newsletter.</p>
+          <div style="text-align:center; margin-top:24px;">
+            <div id="sib-form-container-static">
+              <div id="sib-container" class="sib-container--large sib-container--vertical" style="text-align:center; background-color:rgba(15,17,23,1); max-width:540px; border-radius:3px; border-width:1px; border-color:#C0CCD9; border-style:solid; direction:ltr; margin: 0 auto;">
+                <form id="sib-form" method="POST" action="https://cc06350b.sibforms.com/serve/MUIFAMQCsZgUoapq_5kMweYNRwR04d_hOuy3cN0W4LX4LLHpHnIECh_JNMoEgQHTX5uNGQUPYVeKkAaqUWIc9Ja6Tf81eEcF1zP0xC4OIxz6SMq8-V5mvH1BacS97CEl6_N6TlI33k5JXg-Y5jIvThrS7KnBka64Dw13toyAUYzkDW2tQYkZmAwng6I-pkBGI0C1pPvumnIr8BWgkQ==" data-type="subscription">
+                  <div style="padding: 8px 0;">
+                    <div class="sib-form-block" style="font-size:16px; text-align:left; font-family:Helvetica, sans-serif; color:#ffffff; background-color:transparent; text-align:left">
+                      <div class="sib-text-form-block">
+                        <p>Dejame tu nombre y email para recibir el PDF + newsletter.</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <div style="padding: 8px 0;">
-                  <div class="sib-input sib-form-block">
-                    <div class="form__entry entry_block">
-                      <div class="form__label-row ">
+                  <div style="padding: 8px 0;">
+                    <div class="sib-input sib-form-block">
+                      <div class="form__entry entry_block">
+                        <div class="form__label-row ">
                         <label class="entry__label" style="font-weight: 700; text-align:left; font-size:16px; font-family:Helvetica, sans-serif; color:#3c4858;" for="NOMBRE" data-required="*">¿Cuál es tu nombre?</label>
                         <div class="entry__field">
                           <input class="input " maxlength="200" type="text" id="NOMBRE" name="NOMBRE" autocomplete="off" placeholder="NOMBRE" data-required="true" required />
@@ -708,6 +765,7 @@
         <a href="https://wa.me/5493416087362?text=Hola%20Rodrigo%2C%20quiero%20reservar%20mi%20llamada%20estrat%C3%A9gica%20gratuita%20para%20mejorar%20mis%20resultados%20de%20negociaci%C3%B3n." target="_blank" rel="noopener noreferrer" class="cta-btn whatsapp-cta" style="background:linear-gradient(90deg,#25d366 0%,#128c7e 100%); color:#fff;">Reservar llamada estratégica gratis</a>
         <div class="contact-meta" style="margin-top:12px; color:#d4af37; font-weight:700;">Solo quedan 4 cupos este mes.</div>
         <div class="guarantee-block" style="margin-top:18px; color:#e2e8ef; font-size:1.05rem; background:#181c23; border:2px solid #d4af37; border-radius:12px; padding:18px; max-width:480px; margin-left:auto; margin-right:auto;">Si en la primera conversación no te llevás al menos 3 ideas accionables, te regalo una sesión extra sin cargo.</div>
+        <div class="guarantee-block" style="margin-top:14px; color:#d4af37; font-size:1.08rem; background:#23272f; border:2px solid #d4af37; border-radius:12px; padding:14px; max-width:420px; margin:14px auto 0 auto; font-weight:700; letter-spacing:0.01em;">Solo quedan 4 cupos este mes.</div>
       </section>
       <hr class="section-divider" />
       <section class="metodo-borgia-section">
@@ -875,5 +933,9 @@
         });
       });
     </script>
+    <footer style="width:100%;display:flex;justify-content:center;gap:1.5rem;margin:2.5rem 0 0 0;">
+      <a href="privacidad.html" style="background:#23272f;color:#a3e635;padding:0.7em 1.5em;border-radius:8px;text-decoration:none;font-weight:600;box-shadow:0 2px 8px #0004;transition:background 0.2s;">Política de Privacidad</a>
+      <a href="terminos.html" style="background:#23272f;color:#61a5fa;padding:0.7em 1.5em;border-radius:8px;text-decoration:none;font-weight:600;box-shadow:0 2px 8px #0004;transition:background 0.2s;">Términos y Condiciones</a>
+    </footer>
   </body>
 </html>

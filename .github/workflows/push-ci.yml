@@ -11,17 +11,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
 
-      - name: Install backend dependencies
-        run: pip install -r backend/requirements.txt
-
-      # Node.js steps removed: frontend is now static HTML/CSS
-
-      - name: Deploy to server via SSH
+      - name: Deploy static frontend via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -33,22 +24,6 @@ jobs:
             git fetch origin main
             git reset --hard origin/main
             git clean -fd
-            source .venv/bin/activate
-            pip install --upgrade pip
-            pip install -r backend/requirements.txt
-            sudo systemctl restart backend.service
-            for i in {1..30}; do
-              if curl --fail --silent --show-error http://127.0.0.1:8000/api/health; then
-                break
-              fi
-              if [ "$i" -eq 30 ]; then
-                echo "Backend did not become healthy in time"
-                sudo systemctl --no-pager --full status backend.service || true
-                sudo journalctl -u backend.service -n 80 --no-pager || true
-                exit 1
-              fi
-              sleep 1
-            done
             sudo rm -rf /var/www/html/*
             sudo cp -r frontend/* /var/www/html/
             sudo cp frontend/404.html /var/www/html/404.html

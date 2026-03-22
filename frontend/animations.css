@@ -1,3 +1,15 @@
+/* Fade-in secuencial para frases destacadas */
+.fade-in-seq {
+  opacity: 0;
+  transform: translateY(24px);
+  transition:
+    opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.7s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.fade-in-seq.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
 /* Animaciones y microinteracciones para la landing */
 
 /* Fade-in para bloques principales */
