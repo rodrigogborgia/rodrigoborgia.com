@@ -642,19 +642,11 @@ body {
   overflow: visible;
 }
 
-/* Ensure Brevo form fits inside claim-block and does not overflow */
-#sib-form-container-static, #sib-container {
-  max-width: 100% !important;
-  margin: 0 auto !important;
-  border: none !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  padding: 0 !important;
+#form-container {
+  max-width: 800px;
+  margin: 0 auto;
 }
-#sib-form {
-  width: 100% !important;
-  margin: 0 auto !important;
-}
+
 .hero-cta .cta-btn {
   background: #61a5fa;
   color: #181c23;
