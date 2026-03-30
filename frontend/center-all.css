@@ -1,4 +1,15 @@
-/* Universal centering for all main text elements */
-body, .landing-main, .hero-section, .storytelling-section, .lead-magnet-section, .contact-section, .metodo-borgia-section, .authority-block, .case-story-block, .cta-final-block, .claim-block, .counter-label, h1, h2, h3, h4, h5, h6, p, ul, ol, li, span, a {
-  text-align: center !important;
+/* Centrado inteligente sin asfixiar el ancho */
+.landing-main, 
+.hero-section, 
+.claim-block, 
+h1, h2, h3, p, .cta-btn {
+  text-align: center; /* Quitamos el !important para que otros archivos puedan opinar */
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Aseguramos que los contenedores de texto no se desparramen pero que respiren */
+p, span {
+  display: inline-block;
+  max-width: 100%; 
 }
