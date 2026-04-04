@@ -250,3 +250,48 @@ section {
 .hero-content, .section-fade, .faq-section {
     text-align: left !important;
 }
+
+/* --- SECCIÓN DE OFERTAS (Hormozi Style) --- */
+
+.card-inversion {
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  border: 2px solid transparent !important; /* Borde oculto por defecto */
+  cursor: pointer;
+  position: relative;
+}
+
+
+/* Sesión: Se levanta 10px y prende el borde */
+.card-sesion:hover {
+  border-color: #d4af37 !important;
+  transform: translateY(-10px) !important;
+  box-shadow: 0 20px 40px rgba(212, 175, 55, 0.15);
+}
+
+/* Programa: Mantiene su escala 1.05 PERO también se levanta 10px */
+.card-programa:hover {
+  border-color: #61a5fa !important;
+  /* IMPORTANTE: Mantenemos el 1.05 para que no se achique al entrar el mouse */
+  transform: scale(1.05) translateY(-10px) !important; 
+  box-shadow: 0 20px 40px rgba(97, 165, 250, 0.2);
+}
+
+/* --- FILAS DE CONDICIONES (FAQ/PRECIOS) --- */
+
+.fila-condicion {
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  cursor: pointer;
+  border: 1px solid transparent; /* Evita saltos visuales */
+}
+
+.fila-condicion:hover {
+  transform: translateX(10px); /* En lugar de subir, se desplaza a la derecha (estilo lista) */
+  background: #1a1e26 !important; /* Un tono apenas más claro que el fondo */
+  box-shadow: -5px 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+/* Variaciones de color en el hover para cada borde izquierdo */
+.fila-sensibilizacion:hover { border-left-width: 8px !important; border-left-color: #a3e635 !important; }
+.fila-programa:hover { border-left-width: 8px !important; border-left-color: #61a5fa !important; }
+.fila-boutique:hover { border-left-width: 8px !important; border-left-color: #d4af37 !important; }
+
