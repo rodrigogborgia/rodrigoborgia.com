@@ -1,297 +1,369 @@
-/* 1. BASE Y CENTRADO GLOBAL */
-body {
-  font-family: "Inter", "Segoe UI", Arial, sans-serif;
-  background: #181c23;
-  color: #e2e8ef;
+:root {
+  color-scheme: dark;
+  font-family: 'Inter', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
   margin: 0;
   padding: 0;
+  background: #111418;
+  color: #e2e8ef;
+  min-height: 100%;
 }
 
-.landing-main {
-  width: 100% !important;
-  margin: 0 auto !important;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center !important; /* Esto ayudará a que las secciones se alineen al eje central */
+body {
+  font-size: 16px;
+  line-height: 1.6;
 }
 
-section {
+img {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.page-shell {
   width: 100%;
-  box-sizing: border-box;
+}
+
+.hero-section {
+  width: 100%;
   padding: 60px 20px;
 }
 
-.section-fade, .faq-section {
-  background: #1e222b !important;
-  max-width: 1000px !important;
-  margin: 40px auto !important;
-  border-radius: 12px;
-  border: 1px solid #334155 !important;
-}
-
-/* 3. TESTIMONIOS (Corrección de alineación) */
-.testimonials-accordion {
-  width: 100% !important;
-  max-width: 850px !important; /* Un poco más angosto que la sección para que respire */
-  margin: 0 auto !important;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-}
-
-.testimonial-item {
-  width: 100% !important;
-  border-bottom: 1px solid #333;
-  padding: 24px 0 !important;
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  text-align: center !important;
-}
-
-.testimonial-text {
-  max-width: 750px;
-  margin: 12px auto 0 auto !important;
-  line-height: 1.6;
-}
-
-/* 4. BOTÓN WHATSAPP / CTA */
-.cta-btn {
-  background: linear-gradient(90deg, #d4af37 0%, #800020 100%) !important;
-  color: #181c23 !important;
-  font-weight: 800 !important;
-  border-radius: 12px;
-  padding: 18px 36px;
-  font-size: 1.2rem;
-  text-decoration: none;
-  display: inline-block !important;
-  margin: 24px auto !important;
-  transition: transform 0.2s;
-  border: none !important;
-  width: fit-content !important;
-}
-
-.cta-btn:hover { transform: scale(1.05); }
-
-/* 5. FAQ */
-.faq-accordion { width: 100%; max-width: 800px; margin: 0 auto; }
-.faq-question { 
-  display: flex; justify-content: space-between; align-items: center;
-  width: 100%; color: #d4af37; background-color: #181c23;font-weight: 700; padding: 18px; cursor: pointer;
-}
-.faq-answer { text-align: left; padding: 20px; background: #1a1e26; border-radius: 0 0 12px 12px; }
-
-
-/* FUERZA BRUTA PARA CENTRADO */
-section, 
-div.section-fade, 
-.testimonials-accordion,
-.testimonial-item {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  width: 100% !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-  float: none !important; /* Por si algún estilo viejo usa floats */
-}
-
-/* Forzar que los textos internos no hereden alineación izquierda */
-section *, .section-fade * {
-  text-align: center !important;
-}
-
-/* Excepción para el FAQ: queremos que la respuesta sea legible (izquierda) */
-.faq-answer, .faq-answer * {
-  text-align: left !important;
-}
-
-/* Arreglo para los testimonios que se resisten */
-.testimonial-item div {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  width: 100% !important;
-}
-
-/* El botón siempre al medio */
-.cta-btn {
-  display: flex !important;
-  justify-content: center !important;
-  align-items: center !important;
-  margin: 24px auto !important;
-  float: none !important;
-}
-
-/* Estilo extra para que el formulario no se vea "apretado" en móviles */
-@media (max-width: 768px) {
-    #form-container {
-        width: 95% !important;
-        padding: 0 10px !important;
-    }
-}
-
-/* EL NUEVO HERO PROFESIONAL */
-.hero-section {
-  width: 100% !important; /* Cambiamos 100vw por 100% */
-  background: #181c23 !important;
-  padding: 80px 0 !important;
-  margin: 0 !important; /* Quitamos los márgenes negativos */
-  border: none !important;
-  display: block !important;
-}
-
 .hero-container {
-  max-width: 1200px !important;
-  margin: 0 auto !important; /* ESTO centra la caja en la pantalla */
-  display: flex !important;
-  flex-direction: row !important;
-  flex-wrap: nowrap !important;
-  gap: 50px !important;
-  align-items: center !important;
-  padding: 0 20px !important;
-  width: 100% !important;
-  box-sizing: border-box !important;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 40px;
+  width: 100%;
 }
 
-.hero-content {
-  flex: 1 !important;
-  text-align: left !important;
-  padding-right: 40px !important;
+.hero-copy {
+  flex: 1.2;
+  min-width: 320px;
 }
 
-.hero-title {
-  font-size: 4rem;
-  line-height: 1.1;
-  margin-bottom: 20px;
-  color: #ffffff;
-}
-
-.hero-subtitle {
-  color: #a3e635;
-  font-size: 1.8rem;
+.hero-copy h1 {
+  font-size: clamp(2.6rem, 4vw, 4.2rem);
+  line-height: 1.05;
+  margin: 0 0 24px;
+  color: #d4af37;
   font-weight: 900;
-  margin-bottom: 20px;
 }
 
-.hero-description {
-  font-size: 1.2rem;
-  line-height: 1.6;
-  color: #e2e8ef;
-  margin-bottom: 25px;
-}
-
-.hero-quote {
+.hero-lead {
   font-size: 1.1rem;
+  max-width: 720px;
+  margin: 0 0 30px;
+  color: #cbd5e1;
+}
+
+.hero-benefits {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 40px;
+}
+
+.hero-benefits li {
+  margin-bottom: 18px;
+  font-size: 1.03rem;
+  line-height: 1.7;
+}
+
+.hero-benefits strong {
   color: #61a5fa;
+  font-weight: 700;
+}
+
+.hero-authority {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-top: 30px;
+}
+
+.hero-photo {
+  width: 88px;
+  height: 88px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid rgba(212, 175, 55, 0.35);
+}
+
+.hero-authority p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.hero-form-panel {
+  flex: 1;
+  min-width: 320px;
+  max-width: 420px;
+  background: #14181f;
+  border: 1px solid #2e3645;
+  border-radius: 24px;
+  padding: 32px;
+}
+
+.hero-right-column {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+  width: 100%;
+  max-width: 420px;
+}
+
+.form-secondary-section {
+  width: 100%;
+  padding: 60px 20px 40px;
+}
+
+.form-secondary-container {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.centered-proof .testimonial-grid {
+  gap: 24px;
+}
+
+.centered-proof .testimonial-card {
+  padding: 32px;
+}
+
+.centered-proof .testimonial-card p {
+  margin: 0 0 22px;
+}
+
+.centered-proof .testimonial-card span {
+  font-size: 0.9rem;
+}
+
+.form-header {
+  margin-bottom: 22px;
+}
+
+.form-tag {
+  margin: 0 0 12px;
+  color: #a3e635;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 0.82rem;
+}
+
+.hero-form-panel h2 {
+  margin: 0;
+  color: #ffffff;
+  font-size: 1.8rem;
+  line-height: 1.2;
+}
+
+.form-copy {
+  margin: 20px 0 24px;
+  color: #cbd5e1;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.hero-shift,
+.hero-vision {
+  background: #141b25;
+  border: 1px solid #2f4055;
+  border-radius: 20px;
+  padding: 22px 24px;
+  margin-bottom: 24px;
+  color: #f1f5f9;
+}
+
+.hero-shift p {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.75;
+}
+
+.hero-villain {
+  margin: 0 0 30px;
+  color: #d4af37;
+  font-size: 1.03rem;
+  line-height: 1.7;
+}
+
+.hero-vision p {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.8;
+}
+
+.hubspot-form {
+  width: 100%;
+}
+
+.hubspot-form-center {
+  width: 100%;
+  max-width: 520px;
+  margin: 0 auto 32px auto;
+}
+
+.footer-links {
+  width: 100%;
+  padding: 24px 20px 40px;
+}
+
+.footer-links-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+
+.footer-link {
+  background: #23272f;
+  color: #e2e8ef;
+  padding: 0.85em 1.5em;
+  border-radius: 8px;
+  text-decoration: none;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: background 0.2s ease;
+}
+
+.footer-link:hover {
+  background: #2f3745;
+}
+
+.form-note {
+  margin: 24px 0 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #94a3b8;
+}
+
+.hero-filter {
+  max-width: 1200px;
+  margin: 40px auto 0;
+  padding: 26px 30px;
+  border-radius: 18px;
+  border: 1px solid #2e3645;
+  background: #14181f;
+  color: #e2e8ef;
+}
+
+.hero-filter p {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.7;
+}
+
+.social-proof {
+  width: 100%;
+  padding: 80px 20px 100px;
+}
+
+.social-proof-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.social-proof h2 {
+  margin: 0 0 40px;
+  color: #d4af37;
+  font-size: clamp(2rem, 3vw, 2.8rem);
+  line-height: 1.1;
+  font-weight: 900;
+}
+
+.social-proof.right-side-proof {
+  padding: 0;
+  background: transparent;
+  border: none;
+}
+
+.social-proof.right-side-proof .social-proof-inner {
+  max-width: 100%;
+  margin: 0;
+}
+
+.social-proof.right-side-proof h2 {
+  margin-bottom: 18px;
+  font-size: 1.3rem;
+}
+
+.testimonial-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.testimonial-card {
+  background: #14181f;
+  border: 1px solid #2e3645;
+  border-radius: 20px;
+  padding: 32px;
+}
+
+.testimonial-card p {
+  margin: 0 0 22px;
+  color: #e2e8ef;
+  font-size: 1rem;
+  line-height: 1.8;
   font-style: italic;
 }
 
-.hero-form-box {
-  flex: 0.8 !important;
-  min-width: 350px !important; /* Le da el ancho necesario al formulario */
-}
-
-.form-title {
-  color: #fff;
-  font-size: 1.6rem;
-  margin-bottom: 10px;
-}
-
-.form-desc {
-  color: #94a3b8;
-  font-size: 1rem;
-  margin-bottom: 20px;
-}
-
-.form-footer-text {
-  font-size: 0.85rem;
-  color: #a3e635;
-  margin-top: 20px;
+.testimonial-card span {
+  display: block;
+  color: #61a5fa;
+  font-size: 0.9rem;
   font-weight: 700;
   text-transform: uppercase;
+  letter-spacing: 0.02em;
 }
 
+@media (max-width: 992px) {
+  .hero-container {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-copy, .hero-form-panel {
+    width: 100%;
+  }
+
+  .hero-authority {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
 
 @media (max-width: 768px) {
-  .hero-container {
-    flex-direction: column !important;
-    text-align: center !important;
+  .hero-section {
+    padding: 40px 16px;
   }
-  .hero-content {
-    padding-right: 0 !important;
-    text-align: center !important;
-    margin-bottom: 30px;
+
+  .hero-copy h1 {
+    font-size: 2.4rem;
   }
-  .hero-title {
-    font-size: 2.5rem !important;
+
+  .hero-form-panel {
+    padding: 28px 22px;
+  }
+
+  .testimonial-grid {
+    grid-template-columns: 1fr;
   }
 }
-
-/* EL CONTENEDOR QUE DA ORDEN */
-.container {
-    max-width: 1100px; /* El ancho ideal para lectura */
-    margin: 0 auto;    /* Esto es lo que centra la "caja" en la pantalla */
-    padding: 0 20px;   /* Evita que en el celular el texto toque los bordes */
-    width: 100%;
-    box-sizing: border-box;
-}
-
-/* AJUSTE PARA LAS SECCIONES */
-section {
-    width: 100%;
-    display: flex;
-    justify-content: center; /* Centra el contenido de la sección */
-    padding: 80px 0;
-}
-
-/* REGLA DE ORO: El texto adentro se mantiene a la izquierda */
-.hero-content, .section-fade, .faq-section {
-    text-align: left !important;
-}
-
-/* --- SECCIÓN DE OFERTAS (Hormozi Style) --- */
-
-.card-inversion {
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  border: 2px solid transparent !important; /* Borde oculto por defecto */
-  cursor: pointer;
-  position: relative;
-}
-
-
-/* Sesión: Se levanta 10px y prende el borde */
-.card-sesion:hover {
-  border-color: #d4af37 !important;
-  transform: translateY(-10px) !important;
-  box-shadow: 0 20px 40px rgba(212, 175, 55, 0.15);
-}
-
-/* Programa: Mantiene su escala 1.05 PERO también se levanta 10px */
-.card-programa:hover {
-  border-color: #61a5fa !important;
-  /* IMPORTANTE: Mantenemos el 1.05 para que no se achique al entrar el mouse */
-  transform: scale(1.05) translateY(-10px) !important; 
-  box-shadow: 0 20px 40px rgba(97, 165, 250, 0.2);
-}
-
-/* --- FILAS DE CONDICIONES (FAQ/PRECIOS) --- */
-
-.fila-condicion {
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  cursor: pointer;
-  border: 1px solid transparent; /* Evita saltos visuales */
-}
-
-.fila-condicion:hover {
-  transform: translateX(10px); /* En lugar de subir, se desplaza a la derecha (estilo lista) */
-  background: #1a1e26 !important; /* Un tono apenas más claro que el fondo */
-  box-shadow: -5px 5px 15px rgba(0, 0, 0, 0.3);
-}
-
-/* Variaciones de color en el hover para cada borde izquierdo */
-.fila-sensibilizacion:hover { border-left-width: 8px !important; border-left-color: #a3e635 !important; }
-.fila-programa:hover { border-left-width: 8px !important; border-left-color: #61a5fa !important; }
-.fila-boutique:hover { border-left-width: 8px !important; border-left-color: #d4af37 !important; }
-
