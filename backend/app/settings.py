@@ -1,44 +1,45 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-
 from dotenv import load_dotenv
 
-
-def _load_env_files() -> None:
-    backend_dir = Path(__file__).resolve().parents[1]
-    local_env_file = backend_dir / ".env"
-    external_env_file = Path.home() / ".rb-secrets" / "backend.env"
-
-    custom_env_file_raw = os.getenv("RB_ENV_FILE", "").strip()
-    custom_env_file = Path(custom_env_file_raw).expanduser() if custom_env_file_raw else None
-
-    candidate_files: list[Path] = []
-    if custom_env_file:
-        candidate_files.append(custom_env_file)
-    candidate_files.extend([external_env_file, local_env_file])
-
-    for env_file in candidate_files:
-        if env_file.exists():
-            load_dotenv(env_file, override=False)
+# Cargamos el archivo .env apenas inicia el módulo
+load_dotenv()
 
 
-_load_env_files()
-
-
-@dataclass(frozen=True)
+@dataclass
 class Settings:
-    brevo_api_key: str = os.getenv("BREVO_API_KEY", "")
-    frontend_origins: tuple[str, ...] = tuple(
-        origin.strip()
-        for origin in os.getenv(
-            "FRONTEND_ORIGINS",
-            "https://rodrigoborgia.com",
+    # --- OpenAI (Motor principal) ---
+    openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
+    openai_text_model: str = os.getenv("OPENAI_TEXT_MODEL", "gpt-4o")
+
+    # --- Almacenamiento (Google Cloud Storage) ---
+    gcp_credentials_path: str = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "")
+    gcs_bucket_name: str = os.getenv("GCS_BUCKET_NAME", "")
+    gcs_upload_prefix: str = os.getenv("GCS_UPLOAD_PREFIX", "gemini-images")
+
+    # --- Redes Sociales ---
+    meta_access_token: str = os.getenv("META_ACCESS_TOKEN", "")
+    meta_page_id: str = os.getenv("META_PAGE_ID", "")
+    meta_instagram_business_account_id: str = os.getenv(
+        "META_INSTAGRAM_BUSINESS_ACCOUNT_ID", ""
+    )
+    linkedin_access_token: str = os.getenv("LINKEDIN_ACCESS_TOKEN", "")
+    linkedin_author_urn: str = os.getenv("LINKEDIN_AUTHOR_URN", "")
+
+    # --- Varios ---
+    # CORRECCIÓN: Usamos field y default_factory para evitar el error de mutable default
+    frontend_origins: list[str] = field(
+        default_factory=lambda: os.getenv(
+            "FRONTEND_ORIGINS", "http://localhost:3000"
         ).split(",")
-        if origin.strip()
     )
 
+    sheet_id: str = os.getenv("SHEET_ID", "")
+    sheet_credentials_path: str = os.getenv("SHEET_CREDENTIALS_PATH", "")
 
+
+# Instancia global para importar en otros archivos
 settings = Settings()

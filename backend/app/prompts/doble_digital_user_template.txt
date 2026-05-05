@@ -1,0 +1,12 @@
+Utiliza la siguiente investigación de búsqueda para generar contenido sobre el tema "{{topic}}".
+
+Información de búsqueda:
+{{search_query}}
+
+Resultados clave y fragmentos:
+{{search_snippets}}
+
+Instrucciones:
+- Mantén el tono profesional, directo y estratégico de Rodrigo Borgia.
+- Céntrate en ventas B2B, negociación y valor comercial.
+- Devuelve únicamente JSON válido siguiendo la estructura del prompt del sistema.

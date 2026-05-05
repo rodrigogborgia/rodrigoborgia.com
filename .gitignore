@@ -34,3 +34,17 @@ backend/app/static/videos/Testimonio Rony.mp4
 backend/app/static/videos/
 backend.log
 backend/nohup.out
+
+# Credenciales y archivos secretos
+*.json
+!credentials.json
+# Nota: Si preferís ocultar absolutamente todos los JSON por seguridad, 
+# usá directamente *.json. 
+# Si tu credencial se llama posteador-en-redes-*.json, mejor agregalo así:
+posteador-en-redes-*.json
+
+# Logs adicionales y archivos de configuración sensibles
+.env
+.env.local
+.env.*.local
+
