@@ -31,55 +31,69 @@ class ContentOrchestrator:
         self.meta_publisher = meta_publisher
         self.linkedin_publisher = linkedin_publisher
 
-    def create_and_publish_daily_post(
+ def create_and_publish_daily_post(
         self, topic: str, publish: bool = False
     ) -> Dict[str, Any]:
         # 1. Investigación
         research_data = self.search_client.search_site_terms(topic)
         clean_research = "\n".join(research_data.get("items", []))
 
-        # 2. Carga de metodología
-        metodologia_path = os.path.join(
-            os.path.dirname(__file__), "programa_ventas.txt"
-        )
-        metodologia_borgia = ""
+        # 2. Carga FORZADA de la metodología y CORRECCIONES HUMANAS
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        metodologia_path = os.path.join(base_dir, "programa_ventas.txt")
+        
+        # Leemos la metodología base
+        metodologia_borgia = "Enfócate en ventas B2B de alto valor."
         if os.path.exists(metodologia_path):
             with open(metodologia_path, "r", encoding="utf-8") as f:
                 metodologia_borgia = f.read()
 
+        # Leemos tus correcciones humanas desde el Sheet
+        from backend.app.sheet_logger import SheetLogger
+        from backend.app.settings import settings
+        
+        logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
+        # Recuperamos las últimas 3 correcciones para "entrenar" el tono actual
+        last_corrections = logger.get_last_corrections(limit=3)
+        
+        # Construimos el "estilo" a partir de tus correcciones
+        contexto_estilo = "\n\nEJEMPLOS DE MI ESTILO REAL (USAR ESTA CADENCIA Y VOSEO ROSARINO):\n"
+        for row in last_corrections:
+            if row.get("linkedin_corregido"):
+                contexto_estilo += f"- Ejemplo de estilo: {row['linkedin_corregido']}\n"
+        
+        # Combinamos todo en un solo bloque innegociable
+        metodologia_final = metodologia_borgia + contexto_estilo
+
         # 3. Generación
         raw_data = self.text_generator.generate_borgia_content(
-            topic, clean_research, metodologia_borgia
+            topic, clean_research, metodologia_final
         )
+
+        # Limpieza de formato JSON
         raw_text = (
             raw_data.get("text", "").replace("```json", "").replace("```", "").strip()
         )
         borgia_content = json.loads(raw_text)
 
-        # 4. Imagen
+        # 4. Imagen (Prompt cinematográfico según tu estilo)
         image_prompt = borgia_content.get("image_prompt", topic)
         img_result = self.image_generator.generate_social_image(image_prompt)
         image_url = img_result.get("image_url")
 
-        # 5. Registro (Retornamos el contenido generado para que main.py lo guarde en el Sheet)
+        # 5. Registro
         return {"borgia_content": borgia_content, "image_url": image_url}
-
 
 def build_orchestrator_from_env() -> ContentOrchestrator:
     from backend.app.settings import settings
 
     openai_client = OpenAIClient()
 
-    # Inicializamos sin exigir que los tokens existan
     return ContentOrchestrator(
         text_generator=OpenAITextGenerator(openai_client),
         image_generator=OpenAIImageGenerator(openai_client),
         search_client=SearchClient(),
         storage_manager=StorageManager(
-            settings.gcs_bucket_name,
-            settings.gcp_credentials_path,
-            settings.gcs_upload_prefix,
+            settings.gcs_bucket_name, settings.gcp_credentials_path
         ),
-        meta_publisher=None,
-        linkedin_publisher=None,
     )

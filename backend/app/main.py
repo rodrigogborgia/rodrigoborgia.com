@@ -35,7 +35,7 @@ def publish_daily(payload: PublishDailyInput) -> dict[str, Any]:
         logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
         fecha_hoy = datetime.now().strftime("%Y-%m-%d %H:%M")
 
-        # Pasamos los textos por separado a las nuevas columnas
+        # Registramos con los nuevos campos vacíos para corrección futura
         logger.log_post(
             titulo=payload.topic,
             red_social="BORRADOR (No publicado)",
@@ -45,12 +45,15 @@ def publish_daily(payload: PublishDailyInput) -> dict[str, Any]:
             resumen_linkedin=content.get("linkedin_post", "No generado"),
             resumen_instagram=content.get("instagram_post", "No generado"),
             url_imagen=result.get("image_url", ""),
+            linkedin_corregido="",
+            instagram_corregido="",
         )
 
         return {
             "status": "success",
-            "message": "Contenido generado y guardado en columnas separadas.",
+            "message": "Contenido generado y guardado para revisión.",
         }
     except Exception as e:
-        print(f"🔴 ERROR EN EL PROCESO:\n{traceback.format_exc()}")
+        error_detail = traceback.format_exc()
+        print(f"🔴 ERROR EN EL PROCESO:\n{error_detail}")
         raise HTTPException(status_code=500, detail=str(e))
