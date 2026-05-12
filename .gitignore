@@ -48,3 +48,6 @@ posteador-en-redes-*.json
 .env.local
 .env.*.local
 
+token.pickle
+tiktok*.txttoken.pickle
+tiktok*.txt

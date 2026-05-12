@@ -40,6 +40,11 @@ class Settings:
     sheet_id: str = os.getenv("SHEET_ID", "")
     sheet_credentials_path: str = os.getenv("SHEET_CREDENTIALS_PATH", "")
 
+    sheet_id: str
+    youtube_creds_path: str = (
+        "/Users/rodrigoborgia/RB/rodrigoborgia.com/backend/config/youtube.json"
+    )
+
 
 # Instancia global para importar en otros archivos
 settings = Settings()
