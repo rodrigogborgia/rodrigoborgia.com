@@ -276,3 +276,13 @@ def test_video(topic: str):
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+from fastapi.responses import PlainTextResponse
+
+
+@app.get("/tiktok-verification-file.txt", response_class=PlainTextResponse)
+def tiktok_verification():
+    # Reemplaza 'CONTENIDO_DE_TU_ARCHIVO' por el código alfanumérico
+    # que tiene adentro el archivo que descargaste de TikTok.
+    return "tiktok-developers-site-verification=xhdjTftZXWTg65SToi0DEmVCODWB92S8"
