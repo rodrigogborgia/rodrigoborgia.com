@@ -13,7 +13,6 @@ from pydantic import BaseModel
 from .settings import settings
 from .content_orchestrator import build_orchestrator_from_env
 from .sheet_logger import SheetLogger
-from .youtube_manager import YouTubeManager
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO)
@@ -29,63 +28,42 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- MODELOS DE DATOS ---
-
-
-class PublishDailyInput(BaseModel):
-    topic: str
-
 
 class TopicDiscoveryInput(BaseModel):
     search_terms: List[str]
-
-
-# --- ENDPOINTS ---
 
 
 @app.post("/api/discover-and-generate")
 def discover_and_generate(payload: TopicDiscoveryInput):
     try:
         orchestrator = build_orchestrator_from_env()
+        sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
 
-        raw_list = payload.search_terms
         processed_terms = []
-
-        for item in raw_list:
-            parts = item.replace("\r", "").replace("\t", "\n").split("\n")
+        for item in payload.search_terms:
+            parts = item.replace("\r", "").split("\n")
             processed_terms.extend([p.strip() for p in parts if p.strip()])
 
         if not processed_terms:
-            return {"status": "error", "message": "No se detectaron términos."}
+            return {"status": "error", "message": "No hay términos."}
 
-        print(f"📋 Limpieza exitosa: {len(processed_terms)} términos detectados.")
-
-        prompt_seleccion = f"""
-        Actúa como un experto en Estrategia de Ventas B2B y LinkedIn. 
-        Analiza esta lista de términos de búsqueda de Google Ads:
-        {processed_terms}
-        
-        Selecciona los 7 términos que tengan mayor potencial para crear contenido educativo...
-        REGLA: Devuelve ÚNICAMENTE los 7 términos elegidos, uno por línea.
-        """
-
+        # Seleccionar temas
+        prompt = f"Selecciona los 7 mejores temas de esta lista para LinkedIn B2B (uno por línea): {processed_terms}"
         response = orchestrator.text_generator.client.chat.completions.create(
-            model="gpt-4", messages=[{"role": "user", "content": prompt_seleccion}]
+            model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}]
         )
-
-        selected_topics = response.choices[0].message.content.strip().split("\n")
         selected_topics = [
-            t.lstrip("0123456789.- ").strip() for t in selected_topics if t.strip()
+            t.strip()
+            for t in response.choices[0].message.content.split("\n")
+            if t.strip()
         ][:7]
 
-        print(f"🎯 Temas seleccionados: {selected_topics}")
+        print(f"🎯 Temas: {selected_topics}")
 
-        results = []
         for topic in selected_topics:
-            orchestrator.run_daily_workflow(topic)
-            results.append(topic)
+            orchestrator.run_daily_workflow(topic, logger=sheet_logger)
 
-        return {"status": "success", "temas_elegidos": results}
+        return {"status": "success", "temas": selected_topics}
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -144,8 +122,8 @@ async def publish_pending():
 
                 if not ids_pub["li"] or ids_pub["li"] in ["N/A", ""]:
                     try:
-                        res_ln = orchestrator.linkedin_publisher.publish_image_post(
-                            txt_ln, img_url
+                        res_ln = orchestrator.linkedin_publisher.publish_text_post(
+                            txt_ln
                         )
                         ids_pub["li"] = res_ln.get("id", "OK")
                     except Exception as e:
@@ -286,3 +264,26 @@ def tiktok_verification():
     # Reemplaza 'CONTENIDO_DE_TU_ARCHIVO' por el código alfanumérico
     # que tiene adentro el archivo que descargaste de TikTok.
     return "tiktok-developers-site-verification=xhdjTftZXWTg65SToi0DEmVCODWB92S8"
+
+
+@app.post("/api/sync-brain")
+def sync_brain():
+    """Endpoint dedicado para aprender sin generar posts nuevos."""
+    try:
+        orchestrator = build_orchestrator_from_env()
+        sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
+
+        # 1. Sincroniza lo nuevo
+        orchestrator.sync_borgia_brain(sheet_logger)
+
+        # 2. Consolida lo acumulado (La esencia)
+        resumen = orchestrator.consolidate_knowledge()
+
+        return {
+            "status": "success",
+            "mensaje": "Cerebro actualizado y consolidado",
+            "esencia_actual": resumen,
+        }
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))

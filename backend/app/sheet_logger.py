@@ -4,7 +4,7 @@ import json
 import traceback
 import logging
 from google.oauth2.service_account import Credentials
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 
 class SheetLogger:
@@ -12,10 +12,13 @@ class SheetLogger:
         self.credentials_path = credentials_path
         self.sheet_id = sheet_id
         self._gc: Optional[gspread.client.Client] = None
+        self._spreadsheet: Optional[gspread.Spreadsheet] = None
         self._worksheet: Optional[gspread.Worksheet] = None
+        self._learnings_worksheet: Optional[gspread.Worksheet] = None
         self._connect()
 
     def _connect(self) -> None:
+        """Establece conexión. Si falla, detiene el inicio del sistema."""
         try:
             with open(self.credentials_path, "r") as f:
                 creds_data = json.load(f)
@@ -25,15 +28,82 @@ class SheetLogger:
             ]
             creds = Credentials.from_service_account_info(creds_data, scopes=scopes)
             self._gc = gspread.authorize(creds)
-            self._worksheet = self._gc.open_by_key(self.sheet_id).sheet1
-        except Exception:
-            traceback.print_exc()
+            self._spreadsheet = self._gc.open_by_key(self.sheet_id)
+            self._worksheet = self._spreadsheet.sheet1
+
+            # Conexión a la pestaña de aprendizajes
+            try:
+                self._learnings_worksheet = self._spreadsheet.worksheet(
+                    "Aprendizajes_BorgIA"
+                )
+            except gspread.exceptions.WorksheetNotFound:
+                logging.error("❌ No se encontró la pestaña 'Aprendizajes_BorgIA'.")
+        except Exception as e:
+            logging.critical(f"❌ Error fatal conectando a Google Sheets: {e}")
+            raise e
+
+    def get_unprocessed_learnings(self) -> List[Dict]:
+        """Trae filas donde aprendizaje != 'SI' y hay correcciones."""
+        if not self._worksheet:
+            return []
+        all_data = self._worksheet.get_all_records()
+        # Filtramos: que NO tenga 'SI' y que tenga contenido en las columnas de corregido
+        return [
+            row
+            for row in all_data
+            if str(row.get("aprendizaje")).upper() != "SI"
+            and (
+                str(row.get("linkedin_corregido")).strip() != ""
+                or str(row.get("instagram_corregido")).strip() != ""
+            )
+        ]
+
+    def mark_as_learned(self, titulo: str):
+        """Marca como procesado. Lanza error si falla la actualización."""
+        if not self._worksheet:
+            raise ConnectionError("❌ No hay conexión para marcar aprendizaje.")
+
+        headers = [h.strip() for h in self._worksheet.row_values(1)]
+        if "Aprendizaje_Procesado" not in headers:
+            col_idx = len(headers) + 1
+            self._worksheet.update_cell(1, col_idx, "Aprendizaje_Procesado")
+        else:
+            col_idx = headers.index("Aprendizaje_Procesado") + 1
+
+        cell = self._worksheet.find(titulo)
+        if cell:
+            self._worksheet.update_cell(cell.row, col_idx, "SÍ")
+
+    def save_learning_to_sheet(self, data: Dict[str, str]) -> bool:
+        """Escribe en la pestaña Aprendizajes_BorgIA."""
+        if not self._learnings_worksheet:
+            try:
+                self._learnings_worksheet = self._spreadsheet.worksheet(
+                    "Aprendizajes_BorgIA"
+                )
+            except:
+                logging.error("❌ Pestaña 'Aprendizajes_BorgIA' no encontrada.")
+                return False
+        try:
+            # Columnas: Fecha, Tipo, Enseñanza, Prioridad
+            self._learnings_worksheet.append_row(
+                [
+                    data.get("fecha"),
+                    data.get("tipo"),
+                    data.get("ensenanza"),
+                    data.get("prioridad"),
+                ]
+            )
+            return True
+        except Exception as e:
+            logging.error(f"❌ Error al escribir aprendizaje: {e}")
+            return False
 
     def log_post(
         self,
         titulo,
         estado,
-        post_id,  # Este se guarda pero el flujo lo marca como N/A al inicio
+        post_id,
         objeciones,
         fecha,
         resumen_linkedin,
@@ -42,59 +112,43 @@ class SheetLogger:
         linkedin_corregido="",
         instagram_corregido="",
     ):
-        """
-        Registra un nuevo post respetando el orden exacto de tus columnas:
-        fecha, titulo, estado, linkedin, instagram, url_imagen, linkedin_corregido, instagram_corregido,
-        ig_likes, ig_comments, fb_likes, fb_comments, li_likes, li_comments,
-        engagement_total, engagement_rate, horario_ideal, fecha_programada,
-        id_instagram, id_facebook, id_linkedin
-        """
-        if self._worksheet:
-            try:
-                # Armamos la fila con celdas vacías para las métricas y fecha_programada
-                # para que la fila tenga la longitud correcta
-                nueva_fila = [
-                    fecha,  # A: fecha
-                    titulo,  # B: titulo
-                    estado,  # C: estado
-                    resumen_linkedin,  # D: linkedin
-                    resumen_instagram,  # E: instagram
-                    url_imagen,  # F: url_imagen
-                    linkedin_corregido,  # G: linkedin_corregido
-                    instagram_corregido,  # H: instagram_corregido
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",
-                    "",  # I a N: métricas (likes/comments)
-                    "",
-                    "",
-                    "",
-                    "",  # O a R: engagement y programación
-                    "",
-                    "",
-                    "",  # S a U: IDs de redes (se llenan al publicar)
-                ]
-
-                self._worksheet.append_row(nueva_fila)
-                logging.info(f"✅ Registro guardado en Excel: {titulo}")
-            except Exception as e:
-                logging.error(f"Error al escribir en el Sheet: {e}")
-
-    def get_last_corrections(self, limit: int = 3) -> list[dict]:
+        """Registra un post. Si falla, detiene el proceso de generación."""
         if not self._worksheet:
-            return []
-        all_data = self._worksheet.get_all_records()
-        corrections = [
-            row
-            for row in all_data
-            if row.get("linkedin_corregido") or row.get("instagram_corregido")
+            raise ConnectionError("❌ Sin conexión con el Sheet. Abortando registro.")
+
+        nueva_fila = [
+            fecha,
+            titulo,
+            estado,
+            resumen_linkedin,
+            resumen_instagram,
+            url_imagen,
+            linkedin_corregido,
+            instagram_corregido,
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",  # Columna V: Aprendizaje_Procesado
         ]
-        return corrections[-limit:]
+
+        try:
+            self._worksheet.append_row(nueva_fila)
+            logging.info(f"✅ Registro guardado: {titulo}")
+        except Exception as e:
+            logging.error(f"❌ Error crítico escribiendo fila en Sheets: {e}")
+            raise e
 
     def get_pending_publications(self) -> list[dict]:
-        """Busca filas donde la columna 'estado' sea 'publicar'."""
         if not self._worksheet:
             return []
         all_data = self._worksheet.get_all_records()
@@ -103,29 +157,27 @@ class SheetLogger:
     def update_after_publish(
         self, titulo: str, nuevo_estado: str, ids_dict: Dict[str, str] = None
     ):
-        """
-        Busca el post por título y actualiza el estado y los IDs dinámicamente.
-        """
+        """Actualiza estado post-publicación. Si falla, lanza error."""
         if not self._worksheet:
-            return
+            raise ConnectionError("❌ Sin conexión para actualizar estado final.")
+
         try:
             cell = self._worksheet.find(titulo)
             row_idx = cell.row
             headers = self._worksheet.row_values(1)
 
-            # 1. Actualizar 'estado'
             try:
                 estado_col = headers.index("estado") + 1
                 self._worksheet.update_cell(row_idx, estado_col, nuevo_estado)
             except ValueError:
                 self._worksheet.update_cell(row_idx, 3, nuevo_estado)
 
-            # 2. Actualizar los IDs buscando la columna por nombre
             if ids_dict:
                 mapping = {
                     "ig": "id_instagram",
                     "fb": "id_facebook",
                     "li": "id_linkedin",
+                    "url_video": "url_video",
                 }
                 for key, col_name in mapping.items():
                     if key in ids_dict and ids_dict[key]:
@@ -133,41 +185,8 @@ class SheetLogger:
                             col_idx = headers.index(col_name) + 1
                             self._worksheet.update_cell(row_idx, col_idx, ids_dict[key])
                         except ValueError:
-                            logging.warning(f"No encontré la columna {col_name}")
-
-            logging.info(f"✅ Post '{titulo}' actualizado exitosamente.")
+                            continue
+            logging.info(f"✅ Post '{titulo}' actualizado correctamente.")
         except Exception as e:
-            logging.error(f"Error en update_after_publish: {e}")
-
-    def update_metrics(self, titulo: str, metrics_dict: Dict[str, any]):
-        """
-        Actualiza todas las columnas de métricas para un post específico.
-        """
-        if not self._worksheet:
-            return
-        try:
-            cell = self._worksheet.find(titulo)
-            row_idx = cell.row
-            headers = self._worksheet.row_values(1)
-
-            # Mapeo de campos a columnas del Excel
-            mapping = {
-                "ig_likes": metrics_dict.get("ig", {}).get("likes", 0),
-                "ig_comments": metrics_dict.get("ig", {}).get("comments", 0),
-                "fb_likes": metrics_dict.get("fb", {}).get("likes", 0),
-                "fb_comments": metrics_dict.get("fb", {}).get("comments", 0),
-                "li_likes": metrics_dict.get("li", {}).get("likes", 0),
-                "li_comments": metrics_dict.get("li", {}).get("comments", 0),
-                "engagement_total": metrics_dict.get("total_engagement", 0),
-            }
-
-            for col_name, value in mapping.items():
-                try:
-                    col_idx = headers.index(col_name) + 1
-                    self._worksheet.update_cell(row_idx, col_idx, value)
-                except ValueError:
-                    continue
-
-            logging.info(f"📊 Métricas actualizadas para: {titulo}")
-        except Exception as e:
-            logging.error(f"Error actualizando métricas: {e}")
+            logging.error(f"❌ Fallo en la actualización final del Sheet: {e}")
+            raise e

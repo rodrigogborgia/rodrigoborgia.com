@@ -165,8 +165,8 @@ class LinkedInPublisher:
             "X-Restli-Protocol-Version": "2.0.0",
         }
 
-    def publish_image_post(self, text: str, image_url: str) -> Dict[str, Any]:
-        """Versión simplificada y estable para LinkedIn."""
+    def publish_text_post(self, text: str) -> Dict[str, Any]:
+        """Publica un post de solo texto en LinkedIn, sin imágenes."""
         if not self.access_token:
             raise ValueError("Token de LinkedIn no configurado.")
 
@@ -178,20 +178,13 @@ class LinkedInPublisher:
             "specificContent": {
                 "com.linkedin.ugc.ShareContent": {
                     "shareCommentary": {"text": text},
-                    "shareMediaCategory": "ARTICLE",
-                    "media": [
-                        {
-                            "status": "READY",
-                            "originalUrl": image_url,
-                            "title": {"text": "Rodrigo Borgia - Estrategia de Ventas"},
-                        }
-                    ],
+                    "shareMediaCategory": "NONE",  # <--- Cambiamos ARTICLE por NONE
                 }
             },
             "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
         }
 
-        logging.info(f"🔗 Publicando en LinkedIn (Modo Estable)...")
+        logging.info(f"🔗 Publicando en LinkedIn (Solo Texto)...")
 
         response = requests.post(
             endpoint, headers=self.headers, data=json.dumps(payload), timeout=30

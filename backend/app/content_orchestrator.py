@@ -1,20 +1,16 @@
 from __future__ import annotations
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
 import json
 import logging
 import os
 from datetime import datetime
-from backend.app.storage_manager import StorageManager
-from backend.app.social_publisher import MetaSocialPublisher, LinkedInPublisher
-from backend.app.openai_client import (
-    OpenAIClient,
-    OpenAITextGenerator,
-    OpenAIImageGenerator,
-)
-from backend.app.search_client import SearchClient
 
-# Importamos el nuevo gestor de video
-from backend.app.video_manager import VideoManager
+# Importaciones locales
+from .storage_manager import StorageManager
+from .social_publisher import MetaSocialPublisher, LinkedInPublisher
+from .openai_client import OpenAIClient, OpenAITextGenerator, OpenAIImageGenerator
+from .search_client import SearchClient
+from .video_manager import VideoManager
 
 
 class ContentOrchestrator:
@@ -35,137 +31,143 @@ class ContentOrchestrator:
         self.meta_publisher = meta_publisher
         self.linkedin_publisher = linkedin_publisher
         self.video_manager = video_manager
+        # Archivos de memoria local
+        self.json_path = os.path.join(os.getcwd(), "instrucciones_evolutivas.json")
+        self.esencia_path = os.path.join(os.getcwd(), "esencia_borgia.txt")
 
-    def run_daily_workflow(self, topic: str) -> Dict[str, Any]:
-        from backend.app.sheet_logger import SheetLogger
-        from backend.app.settings import settings
-
-        logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
-        print(f"🤖 Generando investigación y borradores para: {topic}")
-        return self.create_and_publish_daily_post(topic, logger)
-
-    def generate_video_script(self, original_text: str) -> str:
-        """Destila el post de LinkedIn en un guion corto para video faceless."""
-        prompt = f"""
-        Actúa como un experto en copywriting B2B. Basado en este post de LinkedIn:
-        '{original_text}'
-        
-        Crea un guion para un video faceless de 40 segundos máximo.
-        REGLAS:
-        1. Tono serio, autoritario y provocador (Método Borgia).
-        2. Frases cortas e impactantes. 
-        3. Sin hashtags ni despedidas largas.
-        4. Máximo 120 palabras.
-        """
-        # Usamos el generador de texto existente
-        res = self.text_generator.client.chat.completions.create(
-            model="gpt-4", messages=[{"role": "user", "content": prompt}]
-        )
-        return res.choices[0].message.content.strip()
-
-    def dispatch_ready_posts(self, logger=None, pendientes=None) -> Dict[str, Any]:
+    def sync_borgia_brain(self, logger):
+        """Paso 0: Aprende de las correcciones del Sheet antes de hacer nada."""
+        logging.info("🧠 BorgIA sincronizando aprendizaje...")
         if not logger:
-            from backend.app.sheet_logger import SheetLogger
-            from backend.app.settings import settings
+            return
 
-            logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
+        to_process = logger.get_unprocessed_learnings()
+        if not to_process:
+            logging.info("✅ No hay correcciones nuevas para procesar.")
+            return
 
-        if pendientes is None:
-            pendientes = logger.get_pending_publications()
-
-        if not pendientes:
-            print("ℹ️ No hay nada marcado como 'publicar' en el Excel.")
-            return {"status": "nothing_to_publish"}
-
-        results = []
-        for post in pendientes:
-            titulo = post.get("titulo", "Sin título")
-            # Texto corregido es la prioridad
-            txt_linkedin = post.get("linkedin_corregido") or post.get(
-                "resumen_linkedin"
+        for row in to_process:
+            tit = row.get("titulo")
+            # Extraemos lo generado vs lo corregido por Rodrigo
+            li_gen, li_cor = str(row.get("resumen_linkedin", "")), str(
+                row.get("linkedin_corregido", "")
             )
-            txt_social = post.get("instagram_corregido") or post.get(
-                "resumen_instagram"
+            ig_gen, ig_cor = str(row.get("resumen_instagram", "")), str(
+                row.get("instagram_corregido", "")
             )
-            img_url = post.get("url_imagen")
 
-            print(f"🚀 Procesando video y publicación para '{titulo}'...")
+            # Comparación LinkedIn
+            if li_cor.strip() and li_gen.strip() != li_cor.strip():
+                leccion = self._extraer_regla_gpt(li_gen, li_cor, "LinkedIn")
+                self._guardar_leccion(logger, leccion)
 
-            # --- NUEVA LÓGICA DE VIDEO ---
-            video_url_final = post.get("url_video")
-            if not video_url_final and txt_linkedin:
+            # Comparación Instagram
+            if ig_cor.strip() and ig_gen.strip() != ig_cor.strip():
+                leccion = self._extraer_regla_gpt(ig_gen, ig_cor, "Instagram")
+                self._guardar_leccion(logger, leccion)
+
+            # Marcamos como procesado para no repetir el aprendizaje
+            logger.mark_as_learned(tit)
+            logging.info(f"✅ Fila '{tit}' procesada por el cerebrito.")
+
+    def _extraer_regla_gpt(self, original: str, corregido: str, canal: str) -> str:
+        prompt = (
+            f"Actúa como Rodrigo Borgia. Analiza esta corrección técnica de Copy:\n"
+            f"Original IA: {original[:400]}...\n"
+            f"Tu corrección: {corregido[:400]}...\n"
+            "¿Qué patrón específico de escritura cambiaste? (Ej: 'Eliminar adjetivos innecesarios', 'Empezar con una pregunta de dolor', 'No usar emojis en el primer párrafo').\n"
+            "PROHIBIDO usar frases genéricas como 'ser persuasivo' o 'ser claro'. Sé brutalmente específico."
+        )
+        try:
+            res = self.text_generator.client.chat.completions.create(
+                model="gpt-4o-mini", messages=[{"role": "user", "content": prompt}]
+            )
+            return res.choices[0].message.content.strip().replace('"', "")
+        except Exception as e:
+            logging.error(f"Error extrayendo lección: {e}")
+            return ""
+
+    def _guardar_leccion(self, logger, leccion: str) -> bool:
+        if not leccion:
+            return False
+
+        # 1. Sheet
+        success = logger.save_learning_to_sheet(
+            {
+                "fecha": datetime.now().strftime("%Y-%m-%d"),
+                "tipo": "Estilo/Copy",
+                "ensenanza": leccion,
+                "prioridad": "Alta",
+            }
+        )
+
+        # 2. JSON Local
+        if success:
+            data = []
+            if os.path.exists(self.json_path):
                 try:
-                    # 1. Generar guion destilado
-                    v_script = self.generate_video_script(txt_linkedin)
+                    with open(self.json_path, "r") as f:
+                        data = json.load(f)
+                except:
+                    data = []
+            data.append(
+                {"fecha": datetime.now().strftime("%Y-%m-%d"), "ensenanza": leccion}
+            )
+            with open(self.json_path, "w") as f:
+                json.dump(data[-100:], f, indent=4)
+            return True
+        return False
 
-                    # 2. Descargar imagen localmente para procesar video
-                    local_img = self.storage_manager.download_file(
-                        img_url, "temp_bg.png"
-                    )
+    def consolidate_knowledge(self) -> str:
+        """Destila los aprendizajes en una 'Esencia' de 10 leyes."""
+        logging.info("💎 Consolidando esencia BorgIA...")
+        if not os.path.exists(self.json_path):
+            return "Sin datos."
 
-                    # 3. Crear video
-                    output_v = f"video_{datetime.now().strftime('%H%M%S')}.mp4"
-                    local_video = self.video_manager.create_faceless_video(
-                        v_script, local_img, output_v
-                    )
-
-                    # 4. Subir video a GCS
-                    video_url_final = self.storage_manager.upload_file(
-                        local_video, f"videos/{output_v}"
-                    )
-                    print(f"✅ Video Faceless generado: {video_url_final}")
-
-                    # Limpiar locales
-                    os.remove(local_img)
-                    os.remove(local_video)
-                except Exception as e:
-                    print(f"⚠️ Error generando video: {e}")
-
-            # --- PUBLICACIÓN ---
-            ids_pub = {}
-            exitos = 0
-
-            # Instagram (Usamos el video si existe, si no la imagen)
+        with open(self.json_path, "r") as f:
             try:
-                # Aquí podrías decidir si publicas el video o la imagen en IG
-                res = self.meta_publisher.publish_to_meta(txt_social, img_url)
-                ids_pub["ig"] = res.get("id")
-                exitos += 1
-            except Exception as e:
-                print(f"❌ IG Error: {e}")
+                historico = json.load(f)
+            except:
+                return "Error en JSON"
 
-            # Facebook e LinkedIn (Igual que antes)
-            try:
-                self.meta_publisher.publish_to_facebook(txt_social, img_url)
-                exitos += 1
-            except Exception:
-                pass
+        if len(historico) < 2:
+            return "Pocos datos para consolidar."
 
-            if self.linkedin_publisher:
-                try:
-                    res = self.linkedin_publisher.publish_image_post(
-                        txt_linkedin, img_url
-                    )
-                    ids_pub["li"] = res.get("id")
-                    exitos += 1
-                except Exception:
-                    pass
+        texto_historico = "\n".join([f"- {a['ensenanza']}" for a in historico])
 
-            if exitos > 0:
-                # Actualizamos el Excel con IDs y la URL del video
-                ids_pub["url_video"] = video_url_final
-                logger.update_after_publish(titulo, "PUBLICADO", ids_pub)
-                results.append(titulo)
+        prompt = f"""
+        Sos el curador del estilo de Rodrigo Borgia. 
+        Analizá estos micro-aprendizajes de sus correcciones:
+        {texto_historico}
 
-        return {"status": "completed", "published_count": len(results)}
+        Redactá las '10 Leyes de Estilo de Rodrigo Borgia'. 
+        Eliminá redundancias y entregá un manifiesto directo.
+        """
+
+        res = self.text_generator.client.chat.completions.create(
+            model="gpt-4o", messages=[{"role": "user", "content": prompt}]
+        )
+        esencia = res.choices[0].message.content.strip()
+
+        with open(self.esencia_path, "w") as f:
+            f.write(esencia)
+
+        return esencia
 
     def create_and_publish_daily_post(self, topic: str, logger=None) -> Dict[str, Any]:
+        if logger:
+            self.sync_borgia_brain(logger)
+
+        estilo_borgia = ""
+        if os.path.exists(self.esencia_path):
+            with open(self.esencia_path, "r") as f:
+                estilo_borgia = f.read()
+
         research_data = self.search_client.search_site_terms(topic)
         clean_research = "\n".join(research_data.get("items", []))
-        metodologia_borgia = "Enfócate en ventas B2B de alto valor."
 
         raw_data = self.text_generator.generate_borgia_content(
-            topic, clean_research, metodologia_borgia
+            topic, clean_research, estilo_borgia
         )
         borgia_content = json.loads(
             raw_data.get("text", "").replace("```json", "").replace("```", "").strip()
@@ -176,7 +178,7 @@ class ContentOrchestrator:
         )
         url_final = self.storage_manager.upload_from_url(
             img_result.get("image_url"),
-            f"{datetime.now().strftime('%Y%m%d_%H%M%S')}.png",
+            f"social_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png",
         )
 
         if logger:
@@ -190,34 +192,45 @@ class ContentOrchestrator:
                 resumen_instagram=borgia_content.get("instagram_post"),
                 url_imagen=url_final,
             )
+        return {"status": "generated", "topic": topic}
 
-        return {
-            "status": "generated_and_logged",
-            "topic": topic,
-            "image_url": url_final,
-        }
+    def run_daily_workflow(self, topic: str, logger=None):
+        return self.create_and_publish_daily_post(topic, logger=logger)
+
+    def dispatch_ready_posts(self, logger):
+        pendientes = logger.get_pending_publications()
+        for post in pendientes:
+            if self.linkedin_publisher:
+                res = self.linkedin_publisher.publish_text_post(
+                    post.get("resumen_linkedin")
+                )
+                logger.update_after_publish(
+                    post.get("titulo"), "PUBLICADO", {"li": res.get("id")}
+                )
 
 
 def build_orchestrator_from_env() -> ContentOrchestrator:
-    from backend.app.settings import settings
+    from .settings import settings
 
     client = OpenAIClient()
     return ContentOrchestrator(
-        OpenAITextGenerator(client),
-        OpenAIImageGenerator(client),
-        SearchClient(),
-        StorageManager(settings.gcs_bucket_name, settings.gcp_credentials_path),
-        MetaSocialPublisher(
+        text_generator=OpenAITextGenerator(client),
+        image_generator=OpenAIImageGenerator(client),
+        search_client=SearchClient(),
+        storage_manager=StorageManager(
+            settings.gcs_bucket_name, settings.gcp_credentials_path
+        ),
+        meta_publisher=MetaSocialPublisher(
             settings.meta_access_token,
             settings.meta_page_id,
             settings.meta_instagram_business_account_id,
         ),
-        (
+        linkedin_publisher=(
             LinkedInPublisher(
                 settings.linkedin_access_token, settings.linkedin_author_urn
             )
             if settings.linkedin_access_token
             else None
         ),
-        VideoManager(settings.openai_api_key),  # Pasamos el VideoManager
+        video_manager=VideoManager(os.getenv("OPENAI_API_KEY")),
     )
