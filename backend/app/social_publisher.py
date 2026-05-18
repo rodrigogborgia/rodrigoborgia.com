@@ -1,9 +1,11 @@
 from __future__ import annotations
+
 import json
 import logging
-from typing import Any, Dict
-import requests
+import os
 import time
+
+import requests
 
 
 class MetaSocialPublisher:
@@ -178,7 +180,7 @@ class LinkedInPublisher:
             "specificContent": {
                 "com.linkedin.ugc.ShareContent": {
                     "shareCommentary": {"text": text},
-                    "shareMediaCategory": "NONE",  # <--- Cambiamos ARTICLE por NONE
+                    "shareMediaCategory": "NONE",
                 }
             },
             "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
@@ -198,10 +200,8 @@ class LinkedInPublisher:
 
     def get_metrics(self, share_urn: str) -> Dict[str, int]:
         """Obtiene interacciones de LinkedIn probando formatos Share y UGC."""
-        # Intentamos primero con el URN tal cual viene (Share o UGC)
         formats_to_try = [share_urn]
 
-        # Si viene como share, preparamos el formato ugcPost por si acaso
         if "share" in share_urn:
             formats_to_try.append(share_urn.replace("share", "ugcPost"))
         elif "ugcPost" in share_urn:
@@ -229,3 +229,146 @@ class LinkedInPublisher:
                 logging.error(f"Error en intento con {urn}: {e}")
 
         return {"likes": 0, "comments": 0}
+
+
+class TikTokPublisher:
+    """Publicador TikTok usando FILE_UPLOAD."""
+
+    def __init__(
+        self,
+        client_key: str,
+        client_secret: str,
+        access_token: str,
+    ) -> None:
+
+        self.client_key = client_key
+        self.client_secret = client_secret
+        self.access_token = access_token
+
+        self.base_url = "https://open.tiktokapis.com/v2"
+
+    def publish_video(
+        self,
+        local_video_path: str,
+        title: str,
+    ) -> Dict[str, Any]:
+
+        try:
+
+            # =========================
+            # 1. LEER VIDEO
+            # =========================
+
+            with open(local_video_path, "rb") as f:
+                video_bytes = f.read()
+
+            video_size = len(video_bytes)
+
+            logging.info("🎬 Inicializando upload TikTok...")
+
+            # =========================
+            # 2. INIT UPLOAD
+            # =========================
+
+            init_endpoint = f"{self.base_url}/post/publish/video/init/"
+
+            headers = {
+                "Authorization": f"Bearer {self.access_token}",
+                "Content-Type": "application/json; charset=utf-8",
+            }
+
+            payload = {
+                "post_info": {
+                    "title": title[:150],
+                    "privacy_level": "SELF_ONLY",
+                    "disable_comment": False,
+                    "disable_duet": False,
+                    "disable_stitch": False,
+                },
+                "source_info": {
+                    "source": "FILE_UPLOAD",
+                    "video_size": video_size,
+                    "chunk_size": video_size,
+                    "total_chunk_count": 1,
+                },
+            }
+
+            response = requests.post(
+                init_endpoint,
+                headers=headers,
+                json=payload,
+                timeout=30,
+            )
+
+            print("\n🎯 INIT RESPONSE:")
+            print(response.status_code)
+            print(response.text)
+
+            if response.status_code not in [200, 201]:
+
+                logging.error(
+                    f"❌ Error INIT TikTok: "
+                    f"{response.status_code} - {response.text}"
+                )
+
+                return {
+                    "status": "error",
+                    "details": response.json(),
+                }
+
+            init_data = response.json()
+
+            upload_url = init_data["data"]["upload_url"]
+            publish_id = init_data["data"]["publish_id"]
+
+            logging.info("📤 Subiendo binario a TikTok...")
+
+            # =========================
+            # 3. UPLOAD BINARIO
+            # =========================
+
+            upload_headers = {
+                "Content-Type": "video/mp4",
+                "Content-Length": str(video_size),
+                "Content-Range": f"bytes 0-{video_size-1}/{video_size}",
+            }
+
+            upload_response = requests.put(
+                upload_url,
+                headers=upload_headers,
+                data=video_bytes,
+                timeout=120,
+            )
+
+            print("\n🎯 UPLOAD RESPONSE:")
+            print(upload_response.status_code)
+            print(upload_response.text)
+
+            if upload_response.status_code not in [200, 201, 204]:
+
+                logging.error(
+                    f"❌ Error UPLOAD TikTok: "
+                    f"{upload_response.status_code} - "
+                    f"{upload_response.text}"
+                )
+
+                return {
+                    "status": "error",
+                    "details": upload_response.text,
+                }
+
+            logging.info("✅ Video enviado correctamente a TikTok")
+
+            return {
+                "status": "success",
+                "publish_id": publish_id,
+            }
+
+        except Exception as e:
+
+            logging.error(f"❌ Error TikTok upload: {str(e)}")
+
+            return {
+                "status": "error",
+                "message": str(e),
+            }

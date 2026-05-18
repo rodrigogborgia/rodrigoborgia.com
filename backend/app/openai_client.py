@@ -3,6 +3,8 @@ from typing import Any, Dict
 from openai import OpenAI
 import os
 import logging
+import tempfile
+import base64
 
 
 class OpenAIClient:
@@ -46,22 +48,37 @@ class OpenAITextGenerator:
 class OpenAIImageGenerator:
     def __init__(self, client: OpenAIClient) -> None:
         self.client = client.get_client()
-        self.model = os.getenv("OPENAI_IMAGE_MODEL", "dall-e-3")  # O gpt-image-1-mini
+        self.model = os.getenv("OPENAI_IMAGE_MODEL", "dall-e-3")
 
     def generate_social_image(self, prompt: str) -> Dict[str, Any]:
         logging.info(f"🎨 Generando imagen con {self.model}...")
+
         try:
             response = self.client.images.generate(
                 model=self.model,
                 prompt=f"Professional B2B photo, realistic, high-end. Scene: {prompt}",
-                n=1,
                 size="1024x1024",
             )
-            # Acceso correcto para OpenAI v1.x+
-            url = response.data[0].url
-            if not url:
-                raise ValueError("Respuesta sin URL")
-            return {"image_url": url}
+
+            image_data = response.data[0]
+
+            # Caso DALL-E
+            if getattr(image_data, "url", None):
+                return {"type": "url", "value": image_data.url}
+
+            # Caso GPT Image
+            if getattr(image_data, "b64_json", None):
+                image_bytes = base64.b64decode(image_data.b64_json)
+
+                temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=".png")
+
+                temp_file.write(image_bytes)
+                temp_file.close()
+
+                return {"type": "file", "value": temp_file.name}
+
+            raise ValueError("La respuesta no contiene url ni b64_json")
+
         except Exception as e:
             logging.error(f"❌ Error Imagen: {e}")
-            raise e
+            raise
