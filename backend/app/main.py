@@ -23,7 +23,9 @@ from .youtube_manager import YouTubeManager
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="Generador de Contenido BorgIA - ADS Strategy Edition")
+app = FastAPI(
+    title="Generador de Contenido BorgIA - ADS Strategy Edition", root_path="/backend"
+)
 
 app.add_middleware(
     CORSMiddleware,
