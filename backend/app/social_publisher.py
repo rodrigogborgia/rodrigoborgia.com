@@ -199,13 +199,18 @@ class LinkedInPublisher:
         return response.json()
 
     def get_metrics(self, share_urn: str) -> Dict[str, int]:
-        """Obtiene interacciones de LinkedIn probando formatos Share y UGC."""
+        """Obtiene interacciones de LinkedIn probando formatos Share, UGC y Activity."""
         formats_to_try = [share_urn]
 
         if "share" in share_urn:
             formats_to_try.append(share_urn.replace("share", "ugcPost"))
+            formats_to_try.append(share_urn.replace("share", "activity"))
         elif "ugcPost" in share_urn:
             formats_to_try.append(share_urn.replace("ugcPost", "share"))
+            formats_to_try.append(share_urn.replace("ugcPost", "activity"))
+        elif "activity" in share_urn:
+            formats_to_try.append(share_urn.replace("activity", "share"))
+            formats_to_try.append(share_urn.replace("activity", "ugcPost"))
 
         for urn in formats_to_try:
             endpoint = f"https://api.linkedin.com/v2/socialActions/{urn}"
@@ -213,12 +218,19 @@ class LinkedInPublisher:
                 res = requests.get(endpoint, headers=self.headers, timeout=20)
                 if res.status_code == 200:
                     data = res.json()
+
+                    # Pequeño ajuste preventivo en la lectura de campos de la respuesta de LinkedIn
+                    summary = data.get("totalShareStatistics", {})
                     return {
-                        "likes": data.get("totalShareStatistics", {}).get(
-                            "shareCount", 0
+                        "likes": (
+                            summary.get("shareCount", 0)
+                            if summary
+                            else data.get("likesSummary", {}).get("totalLikes", 0)
                         ),
-                        "comments": data.get("totalShareStatistics", {}).get(
-                            "commentCount", 0
+                        "comments": (
+                            summary.get("commentCount", 0)
+                            if summary
+                            else data.get("commentsSummary", {}).get("totalComments", 0)
                         ),
                     }
                 else:
