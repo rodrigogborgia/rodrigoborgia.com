@@ -211,7 +211,7 @@ class ContentOrchestrator:
             borgia_content.get("image_prompt", topic)
         )
         url_final = self.storage_manager.upload_from_url(
-            img_result.get("image_url"),
+            img_result.get("value"),
             f"social_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png",
         )
 
