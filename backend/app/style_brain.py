@@ -5,8 +5,8 @@ from typing import Dict, Any, List
 
 from openai import OpenAI
 
-BASE_PATH = Path(__file__).resolve().parent
-BRAIN_PATH = BASE_PATH / "instrucciones_evolutivas.json"
+BASE_DIR = Path(__file__).resolve().parent.parent
+BRAIN_PATH = BASE_DIR / "instrucciones_evolutivas.json"
 
 # Filosofía de estilo BorgIA: síntesis de tres pilares
 BORGIA_PHILOSOPHY = """
