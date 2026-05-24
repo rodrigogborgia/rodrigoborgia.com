@@ -5,7 +5,7 @@ import traceback
 import os
 import requests
 from datetime import datetime
-from typing import Any, List
+from typing import Any, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +18,12 @@ from .settings import settings
 from .content_orchestrator import build_orchestrator_from_env
 from .sheet_logger import SheetLogger
 from .youtube_manager import YouTubeManager
+from .style_brain import (
+    merge_aprendizaje_with_diff_learning,
+    build_system_prompt_for_generation,
+    load_brain,
+)
+from openai import OpenAI
 
 # Configuración de logging
 logging.basicConfig(level=logging.INFO)
@@ -36,6 +42,249 @@ app.add_middleware(
 )
 
 app.mount("/temp", StaticFiles(directory="temp"), name="temp")
+
+
+# ============================================================================
+# ENDPOINTS DEL CEREBRO DINÁMICO (Style Brain / Diff Learning)
+# ============================================================================
+
+
+class SyncBrainRequest(BaseModel):
+    """
+    Sync Brain usando Diff Learning.
+    Recibe el texto original (AI-generated) y el corregido (user-edited).
+    Analiza QUÉ cambió para aprender el estilo.
+    """
+
+    platform: str  # "linkedin" or "instagram"
+    original_text: str  # Texto original generado por IA
+    corrected_text: str  # Texto corregido por Rodrigo
+    post_id: Optional[int] = None  # Referencia a la fila Posteador (opcional)
+
+
+@app.post("/api/sync-brain")
+def sync_brain(payload: SyncBrainRequest):
+    """
+    Endpoint que recibe un post original + corregido.
+    Realiza Diff Learning (análisis comparativo) para extraer patrones de estilo.
+    Actualiza instrucciones_evolutivas.json con el aprendizaje.
+
+    En producción, este endpoint estaría vinculado a:
+    - Tabla Posteador: filas donde linkedin_corregido o instagram_corregido existan.
+    - Campo Aprendizaje_Procesado: se marca como completado tras actualizar el JSON.
+    """
+    if not payload.original_text or not payload.corrected_text:
+        raise HTTPException(
+            status_code=400,
+            detail="original_text y corrected_text son requeridos",
+        )
+
+    if payload.original_text.strip() == payload.corrected_text.strip():
+        return {
+            "ok": True,
+            "message": "Sin cambios detectados. Aprendizaje no actualizado.",
+            "post_id": payload.post_id,
+        }
+
+    try:
+        client = OpenAI()
+        new_aprendizaje = merge_aprendizaje_with_diff_learning(
+            original_text=payload.original_text,
+            corrected_text=payload.corrected_text,
+            platform=payload.platform,
+            openai_client=client,
+            row_id=payload.post_id,
+        )
+        return {
+            "ok": True,
+            "aprendizaje_dinamico": new_aprendizaje,
+            "post_id": payload.post_id,
+            "message": "Cerebro actualizado con nuevo aprendizaje via Diff Learning",
+        }
+    except Exception as e:
+        logger.error(f"Error en /api/sync-brain: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class SyncBrainBatchRequest(BaseModel):
+    """
+    Preparación para procesar lotes desde la tabla Posteador.
+    Cada item contiene: platform, original, corregido e id de la fila.
+    """
+
+    posts: List[SyncBrainRequest]  # Lista de posts a procesar
+
+
+@app.post("/api/sync-brain/batch")
+def sync_brain_batch_from_posteador():
+    """
+    Lee la tabla Posteador directamente desde Google Sheets.
+    Filtra filas donde:
+      - Aprendizaje_Procesado esté vacío/NULL/False
+      - Y exista texto en linkedin_corregido O instagram_corregido
+    Realiza Diff Learning para cada fila y marca como completada.
+
+    Este endpoint está diseñado para ser invocado por un Cron Job.
+    Respuesta incluye resumen de procesamiento (success/skipped/error) por fila.
+    """
+    try:
+        sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
+        client = OpenAI()
+        records = sheet_logger._worksheet.get_all_records()
+        headers = [h.lower() for h in sheet_logger._worksheet.row_values(1)]
+
+        results = []
+        processed_count = 0
+        skipped_count = 0
+        error_count = 0
+
+        for row_idx, row in enumerate(
+            records, start=2
+        ):  # Row index starts at 2 (header is row 1)
+            # FILTRO 1: Verificar si Aprendizaje_Procesado está pendiente
+            aprendizaje_val = str(row.get("aprendizaje_procesado", "")).strip().lower()
+            if aprendizaje_val and aprendizaje_val not in ["false", "0", ""]:
+                # Ya fue procesada, saltala
+                continue
+
+            # FILTRO 2: Verificar que exista texto en columnas corregidas
+            linkedin_orig = str(row.get("linkedin", "")).strip()
+            linkedin_corr = str(row.get("linkedin_corregido", "")).strip()
+            instagram_orig = str(row.get("instagram", "")).strip()
+            instagram_corr = str(row.get("instagram_corregido", "")).strip()
+
+            has_linkedin_correction = linkedin_orig and linkedin_corr
+            has_instagram_correction = instagram_orig and instagram_corr
+
+            if not (has_linkedin_correction or has_instagram_correction):
+                # No hay textos corregidos para procesar
+                skipped_count += 1
+                results.append(
+                    {
+                        "row_idx": row_idx,
+                        "status": "skipped",
+                        "reason": "Sin textos corregidos (linkedin_corregido e instagram_corregido vacíos)",
+                    }
+                )
+                continue
+
+            # Procesar correcciones encontradas
+            try:
+                for platform, orig, corr in [
+                    ("linkedin", linkedin_orig, linkedin_corr),
+                    ("instagram", instagram_orig, instagram_corr),
+                ]:
+                    if not (orig and corr and orig.strip() != corr.strip()):
+                        continue
+
+                    # Ejecutar Diff Learning
+                    new_aprendizaje = merge_aprendizaje_with_diff_learning(
+                        original_text=orig,
+                        corrected_text=corr,
+                        platform=platform,
+                        openai_client=client,
+                        row_id=row_idx,
+                    )
+
+                    results.append(
+                        {
+                            "row_idx": row_idx,
+                            "platform": platform,
+                            "status": "success",
+                            "aprendizaje_dinamico": new_aprendizaje,
+                        }
+                    )
+                    processed_count += 1
+
+                # MARCADO POST-PROCESAMIENTO: Actualizar Aprendizaje_Procesado
+                timestamp = datetime.utcnow().isoformat() + "Z"
+                aprendizaje_col_idx = (
+                    headers.index("aprendizaje_procesado") + 1
+                    if "aprendizaje_procesado" in headers
+                    else None
+                )
+
+                if aprendizaje_col_idx:
+                    sheet_logger._worksheet.update_cell(
+                        row_idx, aprendizaje_col_idx, timestamp
+                    )
+                    logger.info(
+                        f"Fila {row_idx}: Aprendizaje_Procesado marcado como completado ({timestamp})"
+                    )
+
+            except Exception as e:
+                logger.error(f"Error procesando fila {row_idx}: {e}")
+                error_count += 1
+                results.append(
+                    {
+                        "row_idx": row_idx,
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
+
+        return {
+            "ok": True,
+            "message": "Batch processing desde Posteador completado",
+            "stats": {
+                "total_rows": len(records),
+                "processed": processed_count,
+                "skipped": skipped_count,
+                "errors": error_count,
+            },
+            "results": results,
+        }
+    except Exception as e:
+        logger.error(f"Error crítico en /api/sync-brain/batch: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class GenerateRequest(BaseModel):
+    topic: str
+    extra_instructions: Optional[str] = None
+
+
+@app.post("/api/generate-post")
+def generate_post(payload: GenerateRequest):
+    """
+    Genera un post usando el aprendizaje dinámico actual.
+    Inyecta las reglas_fijas y aprendizaje_dinamico en el System Prompt.
+    """
+    try:
+        brain = load_brain()
+        prompts = build_system_prompt_for_generation(
+            topic=payload.topic,
+            extra_instructions=payload.extra_instructions or "",
+        )
+        client = OpenAI()
+        resp = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": prompts["system_prompt"]},
+                {"role": "user", "content": prompts["user_prompt"]},
+            ],
+            max_tokens=500,
+            temperature=0.7,
+        )
+        content = (
+            resp.choices[0].message.content
+            if hasattr(resp.choices[0].message, "content")
+            else resp.choices[0].message["content"]
+        )
+        # Append fixed hashtags and PD to guarantee presence
+        reglas = brain.get("reglas_fijas", {})
+        hashtags = reglas.get("hashtags_block", "")
+        pd = reglas.get("pd", "")
+        final = f"{content}\n\n{hashtags}\n{pd}"
+        return {"ok": True, "post": final}
+    except Exception as e:
+        logger.error(f"Error en /api/generate-post: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# ENDPOINTS EXISTENTES (Descubrimiento, Publicación, etc.)
+# ============================================================================
 
 
 class TopicDiscoveryInput(BaseModel):

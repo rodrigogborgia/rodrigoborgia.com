@@ -40,7 +40,8 @@ jobs:
             cd /home/rodrigo/RB
             git fetch origin main
             git reset --hard origin/main
-            git clean -fd -e "backend/.env"
+            # Preserve environment and dynamic brain file during clean
+            git clean -fd -e "backend/.env" -e "backend/app/instrucciones_evolutivas.json"
             sudo rm -rf /var/www/html/*
             sudo cp -r frontend/* /var/www/html/
             sudo cp frontend/404.html /var/www/html/404.html
