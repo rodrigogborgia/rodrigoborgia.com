@@ -40,7 +40,7 @@ jobs:
             cd /home/rodrigo/RB
             git fetch origin main
             git reset --hard origin/main
-            git clean -fd
+            git clean -fd -e "backend/.env"
             sudo rm -rf /var/www/html/*
             sudo cp -r frontend/* /var/www/html/
             sudo cp frontend/404.html /var/www/html/404.html
