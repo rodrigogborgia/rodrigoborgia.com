@@ -115,6 +115,24 @@ class SyncBrainBatchRequest(BaseModel):
     posts: List[SyncBrainRequest]  # Lista de posts a procesar
 
 
+def _normalize_sheet_records(records: list, headers: list) -> list:
+    """Convierte filas de Sheets a diccionarios con llaves normalizadas."""
+    normalized = []
+    for row in records:
+        if isinstance(row, dict):
+            normalized.append({str(k).strip().lower(): v for k, v in row.items()})
+        elif isinstance(row, (list, tuple)):
+            normalized.append(
+                {
+                    headers[i].strip().lower(): row[i] if i < len(row) else ""
+                    for i in range(len(headers))
+                }
+            )
+        else:
+            normalized.append({})
+    return normalized
+
+
 @app.post("/api/sync-brain/batch")
 def sync_brain_batch_from_posteador():
     """
@@ -131,7 +149,8 @@ def sync_brain_batch_from_posteador():
         sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
         client = OpenAI()
         records = sheet_logger._worksheet.get_all_records()
-        headers = [h.lower() for h in sheet_logger._worksheet.row_values(1)]
+        headers = [h.strip().lower() for h in sheet_logger._worksheet.row_values(1)]
+        records = _normalize_sheet_records(records, headers)
 
         results = []
         processed_count = 0
