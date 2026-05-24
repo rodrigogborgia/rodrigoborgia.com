@@ -45,111 +45,70 @@ app.mount("/temp", StaticFiles(directory="temp"), name="temp")
 
 
 # ============================================================================
+# HELPERS DE NORMALIZACIÓN
+# ============================================================================
+
+
+def _normalize_sheet_records(records: List[Any], headers: List[str]) -> List[dict]:
+    """
+    Se asegura de que cada fila devuelta por la API de Google Sheets sea un
+    diccionario válido, incluso si vino como una lista cruda.
+    """
+    normalized = []
+    for row in records:
+        if isinstance(row, dict):
+            # Ya es un diccionario, normalizamos las llaves a minúscula y sin espacios
+            clean_row = {str(k).strip().lower(): v for k, v in row.items()}
+            normalized.append(clean_row)
+        elif isinstance(row, list):
+            # Es una lista cruda, mapeamos según la posición de los headers
+            row_dict = {}
+            for idx, header in enumerate(headers):
+                if idx < len(row):
+                    row_dict[header] = row[idx]
+                else:
+                    row_dict[header] = ""
+            normalized.append(row_dict)
+        else:
+            normalized.append({})
+    return normalized
+
+
+# ============================================================================
 # ENDPOINTS DEL CEREBRO DINÁMICO (Style Brain / Diff Learning)
 # ============================================================================
 
 
 class SyncBrainRequest(BaseModel):
-    """
-    Sync Brain usando Diff Learning.
-    Recibe el texto original (AI-generated) y el corregido (user-edited).
-    Analiza QUÉ cambió para aprender el estilo.
-    """
-
     platform: str  # "linkedin" or "instagram"
-    original_text: str  # Texto original generado por IA
-    corrected_text: str  # Texto corregido por Rodrigo
-    post_id: Optional[int] = None  # Referencia a la fila Posteador (opcional)
-
-
-@app.post("/api/sync-brain")
-def sync_brain(payload: SyncBrainRequest):
-    """
-    Endpoint que recibe un post original + corregido.
-    Realiza Diff Learning (análisis comparativo) para extraer patrones de estilo.
-    Actualiza instrucciones_evolutivas.json con el aprendizaje.
-
-    En producción, este endpoint estaría vinculado a:
-    - Tabla Posteador: filas donde linkedin_corregido o instagram_corregido existan.
-    - Campo Aprendizaje_Procesado: se marca como completado tras actualizar el JSON.
-    """
-    if not payload.original_text or not payload.corrected_text:
-        raise HTTPException(
-            status_code=400,
-            detail="original_text y corrected_text son requeridos",
-        )
-
-    if payload.original_text.strip() == payload.corrected_text.strip():
-        return {
-            "ok": True,
-            "message": "Sin cambios detectados. Aprendizaje no actualizado.",
-            "post_id": payload.post_id,
-        }
-
-    try:
-        client = OpenAI()
-        new_aprendizaje = merge_aprendizaje_with_diff_learning(
-            original_text=payload.original_text,
-            corrected_text=payload.corrected_text,
-            platform=payload.platform,
-            openai_client=client,
-            row_id=payload.post_id,
-        )
-        return {
-            "ok": True,
-            "aprendizaje_dinamico": new_aprendizaje,
-            "post_id": payload.post_id,
-            "message": "Cerebro actualizado con nuevo aprendizaje via Diff Learning",
-        }
-    except Exception as e:
-        logger.error(f"Error en /api/sync-brain: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-class SyncBrainBatchRequest(BaseModel):
-    """
-    Preparación para procesar lotes desde la tabla Posteador.
-    Cada item contiene: platform, original, corregido e id de la fila.
-    """
-
-    posts: List[SyncBrainRequest]  # Lista de posts a procesar
-
-
-def _normalize_sheet_records(records: list, headers: list) -> list:
-    """Convierte filas de Sheets a diccionarios con llaves normalizadas."""
-    normalized = []
-    for row in records:
-        if isinstance(row, dict):
-            normalized.append({str(k).strip().lower(): v for k, v in row.items()})
-        elif isinstance(row, (list, tuple)):
-            normalized.append(
-                {
-                    headers[i].strip().lower(): row[i] if i < len(row) else ""
-                    for i in range(len(headers))
-                }
-            )
-        else:
-            normalized.append({})
-    return normalized
+    original_text: str
+    corrected_text: str
+    post_id: Optional[int] = None
 
 
 @app.post("/api/sync-brain/batch")
 def sync_brain_batch_from_posteador():
     """
     Lee la tabla Posteador directamente desde Google Sheets.
-    Filtra filas donde:
-      - Aprendizaje_Procesado esté vacío/NULL/False
-      - Y exista texto en linkedin_corregido O instagram_corregido
-    Realiza Diff Learning para cada fila y marca como completada.
-
-    Este endpoint está diseñado para ser invocado por un Cron Job.
-    Respuesta incluye resumen de procesamiento (success/skipped/error) por fila.
+    Realiza Diff Learning para cada fila pendiente y marca como completada.
     """
     try:
         sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
         client = OpenAI()
+
+        # Leemos los datos crudos
+        raw_values = sheet_logger._worksheet.get_all_values()
+        if not raw_values:
+            return {
+                "ok": True,
+                "message": "Planilla vacía",
+                "stats": {"total_rows": 0, "processed": 0, "skipped": 0, "errors": 0},
+            }
+
+        headers = [str(h).strip().lower() for h in raw_values[0]]
+
+        # gspread get_all_records() devuelve diccionarios omitiendo el header
         records = sheet_logger._worksheet.get_all_records()
-        headers = [h.strip().lower() for h in sheet_logger._worksheet.row_values(1)]
         records = _normalize_sheet_records(records, headers)
 
         results = []
@@ -157,13 +116,10 @@ def sync_brain_batch_from_posteador():
         skipped_count = 0
         error_count = 0
 
-        for row_idx, row in enumerate(
-            records, start=2
-        ):  # Row index starts at 2 (header is row 1)
+        for row_idx, row in enumerate(records, start=2):
             # FILTRO 1: Verificar si Aprendizaje_Procesado está pendiente
             aprendizaje_val = str(row.get("aprendizaje_procesado", "")).strip().lower()
             if aprendizaje_val and aprendizaje_val not in ["false", "0", ""]:
-                # Ya fue procesada, saltala
                 continue
 
             # FILTRO 2: Verificar que exista texto en columnas corregidas
@@ -176,7 +132,6 @@ def sync_brain_batch_from_posteador():
             has_instagram_correction = instagram_orig and instagram_corr
 
             if not (has_linkedin_correction or has_instagram_correction):
-                # No hay textos corregidos para procesar
                 skipped_count += 1
                 results.append(
                     {
@@ -196,7 +151,6 @@ def sync_brain_batch_from_posteador():
                     if not (orig and corr and orig.strip() != corr.strip()):
                         continue
 
-                    # Ejecutar Diff Learning
                     new_aprendizaje = merge_aprendizaje_with_diff_learning(
                         original_text=orig,
                         corrected_text=corr,
@@ -217,18 +171,17 @@ def sync_brain_batch_from_posteador():
 
                 # MARCADO POST-PROCESAMIENTO: Actualizar Aprendizaje_Procesado
                 timestamp = datetime.utcnow().isoformat() + "Z"
-                aprendizaje_col_idx = (
-                    headers.index("aprendizaje_procesado") + 1
-                    if "aprendizaje_procesado" in headers
-                    else None
-                )
-
-                if aprendizaje_col_idx:
+                try:
+                    aprendizaje_col_idx = headers.index("aprendizaje_procesado") + 1
                     sheet_logger._worksheet.update_cell(
                         row_idx, aprendizaje_col_idx, timestamp
                     )
                     logger.info(
                         f"Fila {row_idx}: Aprendizaje_Procesado marcado como completado ({timestamp})"
+                    )
+                except ValueError:
+                    logger.warning(
+                        "No se encontró la columna 'aprendizaje_procesado' en los headers."
                     )
 
             except Exception as e:
@@ -258,17 +211,8 @@ def sync_brain_batch_from_posteador():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-class GenerateRequest(BaseModel):
-    topic: str
-    extra_instructions: Optional[str] = None
-
-
 @app.post("/api/generate-post")
 def generate_post(payload: GenerateRequest):
-    """
-    Genera un post usando el aprendizaje dinámico actual.
-    Inyecta las reglas_fijas y aprendizaje_dinamico en el System Prompt.
-    """
     try:
         brain = load_brain()
         prompts = build_system_prompt_for_generation(
@@ -290,7 +234,7 @@ def generate_post(payload: GenerateRequest):
             if hasattr(resp.choices[0].message, "content")
             else resp.choices[0].message["content"]
         )
-        # Append fixed hashtags and PD to guarantee presence
+
         reglas = brain.get("reglas_fijas", {})
         hashtags = reglas.get("hashtags_block", "")
         pd = reglas.get("pd", "")
@@ -301,9 +245,9 @@ def generate_post(payload: GenerateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# ============================================================================
-# ENDPOINTS EXISTENTES (Descubrimiento, Publicación, etc.)
-# ============================================================================
+class GenerateRequest(BaseModel):
+    topic: str
+    extra_instructions: Optional[str] = None
 
 
 class TopicDiscoveryInput(BaseModel):
@@ -335,8 +279,6 @@ def discover_and_generate(payload: TopicDiscoveryInput):
             messages=[{"role": "user", "content": prompt}],
             response_format={"type": "json_object"},
         )
-
-        import json
 
         data_temas = json.loads(res.choices[0].message.content)
         temas_elegidos = data_temas.get("temas", [])
@@ -383,7 +325,6 @@ async def publish_pending():
                     "url_video": row.get("url_video"),
                 }
 
-                # --- GENERACIÓN DE VIDEO INTEGRADO ---
                 url_video_almacenado = None
                 if not ids_pub["url_video"] or "youtu" not in str(ids_pub["url_video"]):
                     try:
@@ -394,12 +335,10 @@ async def publish_pending():
                             )
                         )
 
-                        # Subimos el archivo a GCS para tener una URL fija accesible por TikTok
                         url_video_almacenado = orchestrator.storage_manager.upload_file(
                             local_video_path, f"videos/{video_filename}"
                         )
 
-                        # Subida tradicional a YouTube Shorts
                         yt_id = yt_manager.upload_short(
                             local_video_path, titulo, f"{txt_ln}\n\n#MetodoBorgIA"
                         )
@@ -411,8 +350,6 @@ async def publish_pending():
                     except Exception as e:
                         print(f"❌ Error Procesando Recurso de Video: {e}")
 
-                # --- PUBLICACIÓN EN TIKTOK ---
-                # Si el orquestador tiene las llaves de TikTok y logramos la URL en GCS
                 if orchestrator.tiktok_publisher and url_video_almacenado:
                     try:
                         caption_tt = f"{titulo} #ventas #negociacion #MetodoBorgIA"
@@ -426,7 +363,6 @@ async def publish_pending():
                     except Exception as e:
                         print(f"❌ Error publicando en TikTok: {e}")
 
-                # --- REDES TRADICIONALES ---
                 if not ids_pub["li"] or ids_pub["li"] in ["N/A", ""]:
                     try:
                         res_ln = orchestrator.linkedin_publisher.publish_text_post(
@@ -479,9 +415,8 @@ async def publish_pending():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/auth/tiktok/login")  # <-- Cambiado de .post a .get
+@app.get("/api/v1/auth/tiktok/login")
 def tiktok_login():
-    """Redirige a la interfaz de consentimiento de TikTok."""
     client_key = os.getenv("TIKTOK_CLIENT_KEY", "")
     redirect_uri = os.getenv("TIKTOK_REDIRECT_URI", "")
     scopes = "user.info.basic,video.publish,video.upload"
@@ -498,12 +433,10 @@ def tiktok_login():
 
 @app.get("/api/v1/auth/tiktok/callback")
 def tiktok_callback(code: str = None, error: str = None):
-
     if error:
         return {"status": "error", "message": error}
 
     token_url = "https://open.tiktokapis.com/v2/oauth/token/"
-
     payload = {
         "client_key": settings.tiktok_client_key,
         "client_secret": settings.tiktok_client_secret,
@@ -511,37 +444,23 @@ def tiktok_callback(code: str = None, error: str = None):
         "grant_type": "authorization_code",
         "redirect_uri": settings.tiktok_redirect_uri,
     }
-
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
     try:
-
         response = requests.post(token_url, data=payload, headers=headers, timeout=20)
-
         data = response.json()
-
-        print("\n🎯 TikTok RESPONSE:")
-        print(data)
-
         access_token = data.get("access_token")
 
         if response.status_code == 200 and access_token:
-
-            print("\n" + "🔑" * 20)
-            print("TIKTOK ACCESS TOKEN:")
             with open("tiktok_tokens.json", "w") as f:
                 json.dump(data, f, indent=2)
-            print("🔑" * 20 + "\n")
-
             return {
                 "status": "success",
                 "access_token_preview": access_token[:20] + "...",
                 "open_id": data.get("open_id"),
                 "scope": data.get("scope"),
             }
-
         return {"status": "error", "details": data}
-
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
@@ -558,8 +477,6 @@ def update_metrics():
 
         for i, row in enumerate(records, start=2):
             if str(row.get("estado", "")).lower() == "publicado":
-                print(f"📊 Auditando: {row.get('titulo')}")
-
                 id_ig = row.get("id_instagram")
                 if id_ig and id_ig not in ["", "N/A"]:
                     m_ig = orchestrator.meta_publisher.get_instagram_metrics(id_ig)
@@ -631,60 +548,20 @@ def tiktok_verification():
     return "tiktok-developers-site-verification=xhdjTftZXWTg65SToi0DEmVCODWB92S8"
 
 
-@app.post("/api/sync-brain")
-def sync_brain():
-    try:
-        orchestrator = build_orchestrator_from_env()
-        sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
-        orchestrator.sync_borgia_brain(sheet_logger)
-        resumen = orchestrator.consolidate_knowledge()
-        return {
-            "status": "success",
-            "mensaje": "Cerebro actualizado y consolidado",
-            "esencia_actual": resumen,
-        }
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.get("/api/test-tiktok")
 def test_tiktok():
-
     try:
-
         orchestrator = build_orchestrator_from_env()
-
         local_video_path = "temp/Estoy concediendo, no negociando.mp4"
 
-        print("🎬 Probando upload TikTok...")
-        print(local_video_path)
-
         if not orchestrator.tiktok_publisher:
-
-            return {
-                "status": "error",
-                "message": "TikTokPublisher no inicializado",
-            }
+            return {"status": "error", "message": "TikTokPublisher no inicializado"}
 
         res_tt = orchestrator.tiktok_publisher.publish_video(
             local_video_path=local_video_path,
             title="Estoy concediendo, no negociando #MetodoBorgIA",
         )
-
-        print("🎯 RESULTADO TIKTOK:")
-        print(res_tt)
-
-        return {
-            "status": "success",
-            "tiktok_result": res_tt,
-        }
-
+        return {"status": "success", "tiktok_result": res_tt}
     except Exception as e:
-
         traceback.print_exc()
-
-        return {
-            "status": "error",
-            "message": str(e),
-        }
+        return {"status": "error", "message": str(e)}
