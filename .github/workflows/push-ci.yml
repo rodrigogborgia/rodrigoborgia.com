@@ -47,7 +47,12 @@ jobs:
             sudo chown -R www-data:www-data /var/www/html
             sudo cp nginx-redirects.conf /etc/nginx/conf.d/rodrigoborgia-redirects.conf
             sudo systemctl reload nginx
-            sudo systemctl restart borgia-backend.service
+            
+            # --- ACÁ QUEDÓ LIMPIO EL APAGADO Y ARRANQUE SEGURO ---
+            sudo systemctl stop borgia-backend.service
+            sudo systemctl reset-failed borgia-backend.service
+            sleep 1
+            sudo systemctl start borgia-backend.service
 
       - name: Release success
         run: echo "Main release flow completed for ${{ github.sha }}"
