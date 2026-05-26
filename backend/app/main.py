@@ -211,6 +211,11 @@ def sync_brain_batch_from_posteador():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class GenerateRequest(BaseModel):
+    topic: str
+    extra_instructions: Optional[str] = None
+
+
 @app.post("/api/generate-post")
 def generate_post(payload: GenerateRequest):
     try:
@@ -243,11 +248,6 @@ def generate_post(payload: GenerateRequest):
     except Exception as e:
         logger.error(f"Error en /api/generate-post: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
-
-class GenerateRequest(BaseModel):
-    topic: str
-    extra_instructions: Optional[str] = None
 
 
 class TopicDiscoveryInput(BaseModel):
