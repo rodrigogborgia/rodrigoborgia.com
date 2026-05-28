@@ -47,7 +47,6 @@ class SheetLogger:
         if not self._worksheet:
             return []
         all_data = self._worksheet.get_all_records()
-        # Filtramos: que NO tenga 'SI' y que tenga contenido en las columnas de corregido
         return [
             row
             for row in all_data
@@ -85,13 +84,12 @@ class SheetLogger:
                 logging.error("❌ Pestaña 'Aprendizajes_BorgIA' no encontrada.")
                 return False
         try:
-            # Columnas: Fecha, Tipo, Enseñanza, Prioridad
             self._learnings_worksheet.append_row(
                 [
-                    data.get("fecha"),
-                    data.get("tipo"),
-                    data.get("ensenanza"),
-                    data.get("prioridad"),
+                    str(data.get("fecha", "")),
+                    str(data.get("tipo", "")),
+                    str(data.get("ensenanza", "")),
+                    str(data.get("prioridad", "")),
                 ]
             )
             return True
@@ -112,19 +110,33 @@ class SheetLogger:
         linkedin_corregido="",
         instagram_corregido="",
     ):
-        """Registra un post. Si falla, detiene el proceso de generación."""
+        """Registra un post. Convierte y normaliza valores complejos a texto plano."""
         if not self._worksheet:
             raise ConnectionError("❌ Sin conexión con el Sheet. Abortando registro.")
 
+        # Función auxiliar de blindaje: si viene dict/list de OpenAI, lo hace un string limpio
+        def safe_str(val: Any) -> str:
+            if val is None:
+                return ""
+            if isinstance(val, (dict, list)):
+                # Si OpenAI devolvió un formato estructurado por error, extraemos el content
+                if isinstance(val, dict) and "content" in val:
+                    content = str(val.get("content", ""))
+                    if "hashtags" in val and isinstance(val["hashtags"], list):
+                        content += "\n\n" + " ".join(str(h) for h in val["hashtags"])
+                    return content
+                return json.dumps(val, ensure_ascii=False)
+            return str(val)
+
         nueva_fila = [
-            fecha,
-            titulo,
-            estado,
-            resumen_linkedin,
-            resumen_instagram,
-            url_imagen,
-            linkedin_corregido,
-            instagram_corregido,
+            safe_str(fecha),
+            safe_str(titulo),
+            safe_str(estado),
+            safe_str(resumen_linkedin),
+            safe_str(resumen_instagram),
+            safe_str(url_imagen),
+            safe_str(linkedin_corregido),
+            safe_str(instagram_corregido),
             "",
             "",
             "",
@@ -138,12 +150,12 @@ class SheetLogger:
             "",
             "",
             "",
-            "",  # Columna V: Aprendizaje_Procesado
+            "",  # Columnas hasta la V
         ]
 
         try:
             self._worksheet.append_row(nueva_fila)
-            logging.info(f"✅ Registro guardado: {titulo}")
+            logging.info(f"✅ Registro guardado de forma segura en Sheets: {titulo}")
         except Exception as e:
             logging.error(f"❌ Error crítico escribiendo fila en Sheets: {e}")
             raise e
@@ -168,9 +180,9 @@ class SheetLogger:
 
             try:
                 estado_col = headers.index("estado") + 1
-                self._worksheet.update_cell(row_idx, estado_col, nuevo_estado)
+                self._worksheet.update_cell(row_idx, estado_col, str(nuevo_estado))
             except ValueError:
-                self._worksheet.update_cell(row_idx, 3, nuevo_estado)
+                self._worksheet.update_cell(row_idx, 3, str(nuevo_estado))
 
             if ids_dict:
                 mapping = {
@@ -183,7 +195,9 @@ class SheetLogger:
                     if key in ids_dict and ids_dict[key]:
                         try:
                             col_idx = headers.index(col_name) + 1
-                            self._worksheet.update_cell(row_idx, col_idx, ids_dict[key])
+                            self._worksheet.update_cell(
+                                row_idx, col_idx, str(ids_dict[key])
+                            )
                         except ValueError:
                             continue
             logging.info(f"✅ Post '{titulo}' actualizado correctamente.")
