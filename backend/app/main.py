@@ -75,7 +75,7 @@ def _normalize_sheet_records(records: List[Any], headers: List[str]) -> List[dic
 
 
 # ============================================================================
-# ENDPOINTS DEL CEREBRO DINÁMICO (Style Brain / Diff Learning)
+# MODELOS DE PETICIÓN (PYDANTIC)
 # ============================================================================
 
 
@@ -84,6 +84,20 @@ class SyncBrainRequest(BaseModel):
     original_text: str
     corrected_text: str
     post_id: Optional[int] = None
+
+
+class GenerateRequest(BaseModel):
+    topic: str
+    extra_instructions: Optional[str] = None
+
+
+class TopicDiscoveryInput(BaseModel):
+    search_terms: List[str]
+
+
+# ============================================================================
+# ENDPOINTS DEL CEREBRO DINÁMICO (Style Brain / Diff Learning)
+# ============================================================================
 
 
 @app.post("/api/sync-brain/batch")
@@ -211,11 +225,6 @@ def sync_brain_batch_from_posteador():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-class GenerateRequest(BaseModel):
-    topic: str
-    extra_instructions: Optional[str] = None
-
-
 @app.post("/api/generate-post")
 def generate_post(payload: GenerateRequest):
     try:
@@ -250,8 +259,9 @@ def generate_post(payload: GenerateRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-class TopicDiscoveryInput(BaseModel):
-    search_terms: List[str]
+# ============================================================================
+# ENDPOINTS DE SEGUNDO PLANO (Descubrimiento y Procesamiento)
+# ============================================================================
 
 
 @app.post("/api/discover-and-generate")
@@ -287,21 +297,22 @@ def discover_and_generate(
 
         logging.info(f"🎯 Temas filtrados por OpenAI: {temas_elegidos}")
 
-        # 👈 FUNCIÓN INTERNA QUE SE EJECUTARÁ DE FONDO
+        # Función interna en segundo plano para evitar el timeout 504
         def procesar_en_segundo_plano(temas, logger_sheet):
             for t in temas:
                 try:
-                    logging.info(f"🚀 [Background] Iniciando flujo para: '{t}'")
+                    logging.info(
+                        f"🚀 [Background] Iniciando flujo completo para el tópico: '{t}'"
+                    )
                     orchestrator.create_and_publish_daily_post(t, logger=logger_sheet)
                 except Exception as ex:
                     logging.error(f"❌ Error en background procesando tema '{t}': {ex}")
 
-        # 👈 Le decimos a FastAPI que dispare el bucle de fondo
+        # Disparamos la tarea de fondo de FastAPI
         background_tasks.add_task(
             procesar_en_segundo_plano, temas_elegidos, sheet_logger
         )
 
-        # Respondemos al instante a Swagger / Cron para evitar el Timeout
         return {
             "status": "success",
             "message": "Procesamiento de temas iniciado en segundo plano exitosamente.",
@@ -431,6 +442,11 @@ async def publish_pending():
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# ENDPOINTS DE INTEGRACIÓN Y MÉTRICAS
+# ============================================================================
 
 
 @app.get("/api/v1/auth/tiktok/login")

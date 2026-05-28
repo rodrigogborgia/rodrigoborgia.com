@@ -207,13 +207,44 @@ class ContentOrchestrator:
         )
         borgia_content = json.loads(texto_limpio)
 
+        # --- GENERACIÓN Y SUBIDA DE IMAGEN BLINDADA ---
         img_result = self.image_generator.generate_social_image(
             borgia_content.get("image_prompt", topic)
         )
-        url_final = self.storage_manager.upload_from_url(
-            img_result.get("value"),
-            f"social_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png",
-        )
+
+        imagen_origen = img_result.get("value", "")
+        nombre_gcs = f"social_{datetime.now().strftime('%Y%m%d_%H%M%S')}.png"
+
+        # Validamos si es una URL de internet o un archivo local del servidor
+        if imagen_origen.startswith("http://") or imagen_origen.startswith("https://"):
+            logging.info(f"🔗 Subiendo imagen a GCS desde URL externa...")
+            url_final = self.storage_manager.upload_from_url(imagen_origen, nombre_gcs)
+        else:
+            # Si es un path local (ej: /tmp/...), usamos el método de subir archivo local
+            logging.info(
+                f"📂 Detectado archivo local ({imagen_origen}). Subiendo a GCS..."
+            )
+            if os.path.exists(imagen_origen):
+                # Usamos el método upload_file que ya tiene tu StorageManager
+                url_final = self.storage_manager.upload_file(
+                    imagen_origen, f"imagenes/{nombre_gcs}"
+                )
+
+                # Limpiamos el archivo temporal para cuidar el almacenamiento del servidor
+                try:
+                    os.remove(imagen_origen)
+                    logging.info(
+                        f"🧹 Temporal de imagen {imagen_origen} eliminado con éxito."
+                    )
+                except Exception as file_err:
+                    logging.warning(
+                        f"No se pudo eliminar el temporal de imagen: {file_err}"
+                    )
+            else:
+                logging.error(
+                    f"❌ El archivo temporal de imagen no existe en la ruta: {imagen_origen}"
+                )
+                url_final = "N/A"
 
         if logger:
             logger.log_post(
