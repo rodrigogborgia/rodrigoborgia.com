@@ -7,7 +7,7 @@ import requests
 from datetime import datetime
 from typing import Any, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
@@ -255,7 +255,9 @@ class TopicDiscoveryInput(BaseModel):
 
 
 @app.post("/api/discover-and-generate")
-def discover_and_generate(payload: TopicDiscoveryInput):
+def discover_and_generate(
+    payload: TopicDiscoveryInput, background_tasks: BackgroundTasks
+):
     try:
         orchestrator = build_orchestrator_from_env()
         sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
@@ -283,13 +285,29 @@ def discover_and_generate(payload: TopicDiscoveryInput):
         data_temas = json.loads(res.choices[0].message.content)
         temas_elegidos = data_temas.get("temas", [])
 
-        logging.info(f"🎯 Temas filtrados y limpios: {temas_elegidos}")
+        logging.info(f"🎯 Temas filtrados por OpenAI: {temas_elegidos}")
 
-        for t in temas_elegidos:
-            logging.info(f"🚀 Iniciando flujo completo para el tópico: '{t}'")
-            orchestrator.create_and_publish_daily_post(t, logger=sheet_logger)
+        # 👈 FUNCIÓN INTERNA QUE SE EJECUTARÁ DE FONDO
+        def procesar_en_segundo_plano(temas, logger_sheet):
+            for t in temas:
+                try:
+                    logging.info(f"🚀 [Background] Iniciando flujo para: '{t}'")
+                    orchestrator.create_and_publish_daily_post(t, logger=logger_sheet)
+                except Exception as ex:
+                    logging.error(f"❌ Error en background procesando tema '{t}': {ex}")
 
-        return {"status": "success", "temas_procesados": temas_elegidos}
+        # 👈 Le decimos a FastAPI que dispare el bucle de fondo
+        background_tasks.add_task(
+            procesar_en_segundo_plano, temas_elegidos, sheet_logger
+        )
+
+        # Respondemos al instante a Swagger / Cron para evitar el Timeout
+        return {
+            "status": "success",
+            "message": "Procesamiento de temas iniciado en segundo plano exitosamente.",
+            "temas_detectados": temas_elegidos,
+        }
+
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
