@@ -364,33 +364,43 @@ async def publish_pending():
                             )
                         )
 
+                        # 1. Lo subimos a tu storage en la nube (S3/DigitalOcean Spaces)
                         url_video_almacenado = orchestrator.storage_manager.upload_file(
                             local_video_path, f"videos/{video_filename}"
                         )
 
+                        # 2. Lo subimos a YouTube Shorts
                         yt_id = yt_manager.upload_short(
                             local_video_path, titulo, f"{txt_ln}\n\n#MetodoBorgIA"
                         )
                         ids_pub["url_video"] = f"https://www.youtube.com/shorts/{yt_id}"
 
+                        # 🚀 3. NUEVO ORDEN: Subimos a TikTok usando el ARCHIVO LOCAL antes de borrarlo
+                        if orchestrator.tiktok_publisher:
+                            try:
+                                caption_tt = (
+                                    f"{titulo} #ventas #negociacion #MetodoBorgIA"
+                                )
+                                # Le pasamos local_video_path, igual que a YouTube
+                                res_tt = orchestrator.tiktok_publisher.publish_video(
+                                    local_video_path=local_video_path, title=caption_tt
+                                )
+                                if res_tt.get("status") == "success":
+                                    print(f"✅ Video despachado a TikTok con éxito.")
+                            except Exception as e:
+                                print(
+                                    f"❌ Error publicando en TikTok dentro de la cadena: {e}"
+                                )
+
+                        # 🧹 4. RECIÉN ACÁ BORRAMOS: Una vez que YouTube y TikTok tienen sus copias
                         if os.path.exists(local_video_path):
                             os.remove(local_video_path)
-                            print(f"🧹 Temporal {video_filename} eliminado.")
-                    except Exception as e:
-                        print(f"❌ Error Procesando Recurso de Video: {e}")
-
-                if orchestrator.tiktok_publisher and url_video_almacenado:
-                    try:
-                        caption_tt = f"{titulo} #ventas #negociacion #MetodoBorgIA"
-                        res_tt = orchestrator.tiktok_publisher.publish_video(
-                            video_url=url_video_almacenado, title=caption_tt
-                        )
-                        if res_tt.get("status") == "success":
                             print(
-                                f"✅ Video despachado a TikTok. ID: {res_tt.get('publish_id')}"
+                                f"🧹 Temporal {video_filename} eliminado de forma segura."
                             )
+
                     except Exception as e:
-                        print(f"❌ Error publicando en TikTok: {e}")
+                        print(f"❌ Error Procesando Recurso de Video en cadena: {e}")
 
                 if not ids_pub["li"] or ids_pub["li"] in ["N/A", ""]:
                     try:
