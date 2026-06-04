@@ -48,6 +48,10 @@ STATUS_FILE_PATH = os.path.join(
     os.path.dirname(__file__), "temp", "publish_status.json"
 )
 
+# ============================================================================
+# HELPERS DE NORMALIZACIÓN Y TRACKING
+# ============================================================================
+
 
 def _normalize_sheet_records(records: List[Any], headers: List[str]) -> List[dict]:
     normalized = []
@@ -70,7 +74,7 @@ def _update_status_tracker(
             "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "current_action": current_action,
             "progress": f"{processed}/{total}",
-            "logs": details[-15:],  # Guardamos los últimos 15 eventos para no saturar
+            "logs": details[-15:],  # Mantiene las últimas 15 líneas de logs activos
         }
         with open(STATUS_FILE_PATH, "w", encoding="utf-8") as f:
             json.dump(status_data, f, indent=2, ensure_ascii=False)
@@ -117,8 +121,68 @@ def generate_post(payload: TopicRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/discover-and-generate")
+def discover_and_generate(background_tasks: BackgroundTasks):
+    """Endpoint autónomo pesado: Busca tendencias, genera copys, imágenes y videos."""
+    try:
+        orchestrator = build_orchestrator_from_env()
+        sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
+
+        def async_pipeline():
+            try:
+                orchestrator.run_autonomous_pipeline(sheet_logger)
+            except Exception as ex:
+                logger.error(f"❌ Error en pipeline autónomo: {ex}")
+                traceback.print_exc()
+
+        background_tasks.add_task(async_pipeline)
+        return {
+            "status": "success",
+            "message": "Pipeline de descubrimiento y generación BorgIA corriendo en segundo plano.",
+        }
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/sync-brain/batch")
+def sync_brain_batch():
+    """Endpoint de entrenamiento: Procesa tus correcciones en Sheets y actualiza las reglas."""
+    try:
+        sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
+        records = sheet_logger.get_unprocessed_learnings()
+
+        if not records:
+            return {
+                "status": "success",
+                "message": "No hay nuevos aprendizajes para procesar.",
+            }
+
+        openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        processed_count = 0
+
+        for r in records:
+            row_num = r.get("_row_num")
+            enseñanza = r.get("Enseñanza", "")
+            tipo = r.get("Tipo", "Estilo/Copy")
+
+            if row_num and enseñanza:
+                merge_aprendizaje_with_diff_learning(openai_client, enseñanza)
+                sheet_logger.mark_learning_as_processed(row_num)
+                processed_count += 1
+
+        return {
+            "status": "success",
+            "message": f"Se procesaron y fusionaron {processed_count} aprendizajes correctamente.",
+        }
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/publish-pending")
 async def publish_pending(background_tasks: BackgroundTasks):
+    """Publica contenido aprobado de forma asincrónica evitando errores 504 Gateway Timeout."""
     try:
         orchestrator = build_orchestrator_from_env()
         sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
@@ -130,7 +194,6 @@ async def publish_pending(background_tasks: BackgroundTasks):
                 headers = [h.lower() for h in logger_sheet._worksheet.row_values(1)]
                 yt_manager = YouTubeManager(settings.youtube_creds_path)
 
-                # Filtrar cuántas filas reales tenemos que procesar
                 filas_a_procesar = [
                     (idx, row)
                     for idx, row in enumerate(records, start=2)
@@ -175,7 +238,7 @@ async def publish_pending(background_tasks: BackgroundTasks):
                         "url_video": row.get("url_video"),
                     }
 
-                    # --- LÓGICA DE VIDEO (YouTube / TikTok) ---
+                    # --- GESTIÓN DE VIDEO (Shorts / TikTok) ---
                     if not ids_pub["url_video"] or "youtu" not in str(
                         ids_pub["url_video"]
                     ):
@@ -236,7 +299,7 @@ async def publish_pending(background_tasks: BackgroundTasks):
                         except Exception as ve:
                             details_log.append(f"❌ Error Video: {str(ve)}")
 
-                    # --- REDES SOCIALES ---
+                    # --- DESPACHO A PLATAFORMAS SOCIALES ---
                     if not ids_pub["li"] or ids_pub["li"] in ["N/A", ""]:
                         try:
                             res_ln = orch.linkedin_publisher.publish_text_post(txt_ln)
@@ -334,3 +397,52 @@ def get_publish_status():
 @app.get("/tiktok-verification-file.txt", response_class=PlainTextResponse)
 def tiktok_verification():
     return "tiktok-developers-site-verification=xhdjTftZXWTg65SToi0DEmVCODWB92S8"
+
+
+# ============================================================================
+# ENDPOINTS DE TESTEO Y VERIFICACIÓN MANUAL
+# ============================================================================
+
+
+@app.get("/api/test-tiktok")
+def test_tiktok():
+    try:
+        orchestrator = build_orchestrator_from_env()
+        local_video_path = "temp/Estoy concediendo, no negociando.mp4"
+
+        if not orchestrator.tiktok_publisher:
+            return {"status": "error", "message": "TikTokPublisher no inicializado"}
+
+        res_tt = orchestrator.tiktok_publisher.publish_video(
+            local_video_path=local_video_path,
+            title="Estoy concediendo, no negociando. #MetodoBorgIA",
+        )
+        return {"status": "success", "response": res_tt}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/test-video-generation")
+def test_video_generation(topic: str, row_index: int):
+    try:
+        orchestrator = build_orchestrator_from_env()
+        sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
+
+        row_data = sheet_logger._worksheet.row_values(row_index)
+        headers = [h.lower() for h in sheet_logger._worksheet.row_values(1)]
+        row_dict = dict(zip(headers, row_data))
+        script = row_dict.get("linkedin_corregido") or row_dict.get("resumen_linkedin")
+
+        path = orchestrator.video_manager.create_faceless_video(
+            text_script=script,
+            image_path="",
+            output_path=f"test_{int(datetime.now().timestamp())}.mp4",
+        )
+        url = orchestrator.storage_manager.upload_file(path, f"videos/test_{topic}.mp4")
+        if os.path.exists(path):
+            os.remove(path)
+        return {"status": "success", "video_url": url}
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
