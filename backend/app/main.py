@@ -144,37 +144,132 @@ def discover_and_generate(background_tasks: BackgroundTasks):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @app.post("/api/sync-brain/batch")
 def sync_brain_batch():
-    """Endpoint de entrenamiento: Procesa tus correcciones en Sheets y actualiza las reglas."""
+    """
+    Sincronización Inteligente: Compara lo generado contra tus correcciones manuales,
+    extrae reglas de estilo y las consolida en instrucciones_evolutivas.json.
+    """
     try:
         sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
-        records = sheet_logger.get_unprocessed_learnings()
-
-        if not records:
-            return {
-                "status": "success",
-                "message": "No hay nuevos aprendizajes para procesar.",
-            }
+        # Traemos todas las filas de la hoja de contenido principal
+        records = sheet_logger._worksheet.get_all_records()
+        headers = [h.lower() for h in sheet_logger._worksheet.row_values(1)]
+        
+        # Ruta local del archivo de reglas evolutivas
+        json_brain_path = os.path.join(os.path.dirname(__file__), "instrucciones_evolutivas.json")
+        
+        # 1. Cargar las instrucciones evolutivas actuales
+        current_rules = []
+        if os.path.exists(json_brain_path):
+            try:
+                with open(json_brain_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                    current_rules = data.get("reglas_estilo", []) if isinstance(data, dict) else data
+            except Exception:
+                current_rules = []
 
         openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         processed_count = 0
 
-        for r in records:
-            row_num = r.get("_row_num")
-            enseñanza = r.get("Enseñanza", "")
-            tipo = r.get("Tipo", "Estilo/Copy")
+        # 2. Recorrer la planilla buscando correcciones humanas no procesadas
+        for idx, row in enumerate(records, start=2):
+            # Normalizamos nombres de columnas a minúsculas
+            procesado = str(row.get("aprendizaje_procesado", row.get("Aprendizaje_Procesado", ""))).strip().lower()
+            
+            # Si ya se procesó o no está publicado, lo saltamos
+            if procesado in ["sí", "si", "true"]:
+                continue
+                
+            # Extraemos textos originales y corregidos
+            txt_ln_orig = str(row.get("linkedin", "")).strip()
+            txt_ln_corr = str(row.get("linkedin_corregido", "")).strip()
+            txt_ig_orig = str(row.get("instagram", "")).strip()
+            txt_ig_corr = str(row.get("instagram_corregido", "")).strip()
+            
+            # Verificamos si realmente hubo cambios hechos por vos
+            hubo_cambio_ln = txt_ln_corr and (txt_ln_orig != txt_ln_corr)
+            hubo_cambio_ig = txt_ig_corr and (txt_ig_orig != txt_ig_corr)
+            
+            if not hubo_cambio_ln and not hubo_cambio_ig:
+                # Si no cambiaste nada, lo marcamos como procesado de todos modos para no reanalizarlo
+                if "aprendizaje_procesado" in headers:
+                    col_idx = headers.index("aprendizaje_procesado") + 1
+                    sheet_logger._worksheet.update_cell(idx, col_idx, "SÍ")
+                continue
 
-            if row_num and enseñanza:
-                merge_aprendizaje_with_diff_learning(openai_client, enseñanza)
-                sheet_logger.mark_learning_as_processed(row_num)
+            # 3. Preparar el prompt para que la IA deduzca tu estilo
+            ejemplos_cambios = ""
+            if hubo_cambio_ln:
+                ejemplos_cambios += f"--- CAMBIO EN LINKEDIN ---\n[ORIGINAL IA]: {txt_ln_orig}\n[CORREGIDO POR RODRIGO]: {txt_ln_corr}\n\n"
+            if hubo_cambio_ig:
+                ejemplos_cambios += f"--- CAMBIO EN INSTAGRAM ---\n[ORIGINAL IA]: {txt_ig_orig}\n[CORREGIDO POR RODRIGO]: {txt_ig_corr}\n\n"
+
+            prompt_analisis = f"""
+Eres un ingeniero de prompts y experto en copywriting. Tu tarea es analizar cómo Rodrigo Borgia corrige los textos generados por la IA para extraer sus reglas de estilo implícitas.
+
+Aquí tienes los cambios realizados:
+{ejemplos_cambios}
+
+REGLAS EXISTENTES EN SU ARCHIVO DE ESTILO ACTUAL:
+{json.dumps(current_rules, ensure_ascii=False, indent=2)}
+
+TAREA:
+1. Deduce qué regla de estilo, tono, vocabulario o estructura aplicó Rodrigo al corregir el texto.
+2. Compara esta nueva regla con las REGLAS EXISTENTES. Si la regla ya está cubierta, está implícita o es redundante, IGNÓRALA.
+3. Si es un aprendizaje realmente NUEVO, redáctalo de forma concisa (máximo 2 frases) en formato imperativo (ej: "Evita usar la palabra 'x' y reemplázala por 'y'", "Al cerrar un post de Instagram, añade siempre un llamado a la acción enfocado en...").
+
+Responde ÚNICAMENTE con un array JSON de strings con las NUEVAS reglas descubiertas (si no hay ninguna nueva, devuelve un array vacío []). Ejemplo de salida:
+["Regla nueva 1", "Regla nueva 2"]
+"""
+
+            # 4. Llamada a OpenAI para extraer los nuevos patrones
+            try:
+                response = openai_client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": prompt_analisis}],
+                    temperature=0.3,
+                )
+                
+                respuesta_raw = response.choices[0].message.content.strip()
+                # Limpieza de markdown por si acaso
+                if respuesta_raw.startswith("```json"):
+                    respuesta_raw = respuesta_raw.replace("
+```json", "").replace("```", "").strip()
+                elif respuesta_raw.startswith("```"):
+                    respuesta_raw = respuesta_raw.replace("
+```", "").strip()
+                    
+                nuevas_reglas = json.loads(respuesta_raw)
+                
+                # 5. Consolidación en la lista en caliente
+                if isinstance(nuevas_reglas, list):
+                    for regla in nuevas_reglas:
+                        if regla not in current_rules:
+                            current_rules.append(regla)
+                            
                 processed_count += 1
+                
+                # 6. Marcar la fila actual como procesada en el Google Sheet
+                if "aprendizaje_procesado" in headers:
+                    col_idx = headers.index("aprendizaje_procesado") + 1
+                    sheet_logger._worksheet.update_cell(idx, col_idx, "SÍ")
+
+            except Exception as e:
+                logger.error(f"❌ Error analizando estilo en fila {idx}: {e}")
+                continue
+
+        # 7. Guardar el archivo consolidado final actualizado
+        if processed_count > 0:
+            output_data = {"reglas_estilo": current_rules}
+            with open(json_brain_path, "w", encoding="utf-8") as f:
+                json.dump(output_data, f, indent=2, ensure_ascii=False)
 
         return {
             "status": "success",
-            "message": f"Se procesaron y fusionaron {processed_count} aprendizajes correctamente.",
+            "message": f"Se analizaron {processed_count} filas con correcciones. El archivo 'instrucciones_evolutivas.json' ha sido actualizado y consolidado."
         }
+
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
