@@ -111,10 +111,39 @@ def generate_post(payload: TopicRequest):
         ) as f:
             metodologia = f.read()
 
+        # 1. Genera el contenido con la IA usando tu nuevo chip de conversión masiva
         res = generator.generate_borgia_content(
             topic=payload.topic, research=payload.research, metodologia=metodologia
         )
-        return json.loads(res["text"])
+        post_data = json.loads(res["text"])
+
+        # 2. Conexión al Sheet e indexación automática como PENDIENTE
+        sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
+
+        # Extraemos los copys estructurados que devuelve el modelo
+        txt_linkedin = post_data.get("linkedin_post", "")
+        # Si el JSON no trae instagram_post, usamos el de linkedin como backup
+        txt_instagram = post_data.get("instagram_post", txt_linkedin)
+
+        # Usamos el método nativo del sistema para meter la fila con la estructura oficial
+        sheet_logger.log_post(
+            titulo=payload.topic,
+            estado="PENDIENTE",
+            post_id="",
+            objeciones="",
+            fecha=datetime.now().strftime("%Y-%m-%d %H:%M"),
+            resumen_linkedin=txt_linkedin,
+            resumen_instagram=txt_instagram,
+            url_imagen="",  # Queda vacía para que no rompa el flujo de publicación posterior
+        )
+
+        # Devolvemos la respuesta para que también la veas en Swagger de inmediato
+        return {
+            "status": "success",
+            "message": f"Post '{payload.topic}' generado con éxito e indexado en el Sheet 'Posteador'.",
+            "data": post_data,
+        }
+
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
