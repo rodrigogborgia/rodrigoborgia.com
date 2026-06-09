@@ -3,13 +3,12 @@ import json
 import logging
 import traceback
 import os
-import requests
 from datetime import datetime
 from typing import Any, List, Optional
 
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse, PlainTextResponse, JSONResponse
+from fastapi.responses import RedirectResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -83,7 +82,7 @@ def _update_status_tracker(
 
 
 # ============================================================================
-# ENDPOINTS
+# ENDPOINTS OPERATIVOS
 # ============================================================================
 
 
@@ -140,143 +139,6 @@ def discover_and_generate(background_tasks: BackgroundTasks):
             "status": "success",
             "message": "Pipeline de descubrimiento y generación BorgIA corriendo en segundo plano.",
         }
-    except Exception as e:
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/sync-brain/batch")
-def sync_brain_batch():
-    """
-    Sincronización Inteligente: Compara lo generado contra tus correcciones manuales,
-    extrae reglas de estilo y las consolida en el formato nativo de instrucciones_evolutivas.json.
-    """
-    try:
-        sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.settings.sheet_id if hasattr(settings, "sheet_id") else settings.sheet_id)
-        records = sheet_logger._worksheet.get_all_records()
-        headers = [h.lower() for h in sheet_logger._worksheet.row_values(1)]
-        
-        json_brain_path = os.path.join(os.path.dirname(__file__), "instrucciones_evolutivas.json")
-        
-        # 1. Cargar el JSON respetando su estructura nativa
-        brain_data = {
-            "version": 1,
-            "reglas_fijas": {},
-            "aprendizaje_dinamico": [],
-            "meta": {}
-        }
-        
-        if os.path.exists(json_brain_path):
-            try:
-                with open(json_brain_path, "r", encoding="utf-8") as f:
-                    loaded_data = json.load(f)
-                    if isinstance(loaded_data, dict):
-                        brain_data.update(loaded_data)
-            except Exception as json_err:
-                logger.error(f"⚠️ Error leyendo JSON existente, se mantendrá la estructura base: {json_err}")
-
-        # Aseguramos que aprendizaje_dinamico sea una lista
-        if "aprendizaje_dinamico" not in brain_data or not isinstance(brain_data["aprendizaje_dinamico"], list):
-            brain_data["aprendizaje_dinamico"] = []
-
-        openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-        processed_count = 0
-
-        # 2. Buscar filas con correcciones humanas no procesadas
-        for idx, row in enumerate(records, start=2):
-            procesado = str(row.get("aprendizaje_procesado", row.get("Aprendizaje_Procesado", ""))).strip().lower()
-            
-            if procesado in ["sí", "si", "true"]:
-                continue
-                
-            txt_ln_orig = str(row.get("linkedin", "")).strip()
-            txt_ln_corr = str(row.get("linkedin_corregido", "")).strip()
-            txt_ig_orig = str(row.get("instagram", "")).strip()
-            txt_ig_corr = str(row.get("instagram_corregido", "")).strip()
-            
-            hubo_cambio_ln = txt_ln_corr and (txt_ln_orig != txt_ln_corr)
-            hubo_cambio_ig = txt_ig_corr and (txt_ig_orig != txt_ig_corr)
-            
-            # Si no hay cambios, marcamos como procesado igual para avanzar
-            if not hubo_cambio_ln and not hubo_cambio_ig:
-                if "aprendizaje_procesado" in headers:
-                    col_idx = headers.index("aprendizaje_procesado") + 1
-                    sheet_logger._worksheet.update_cell(idx, col_idx, "SÍ")
-                continue
-
-            ejemplos_cambios = ""
-            if hubo_cambio_ln:
-                examples_txt = txt_ln_orig[:600] + "..." if len(txt_ln_orig) > 600 else txt_ln_orig
-                examples_corr = txt_ln_corr[:600] + "..." if len(txt_ln_corr) > 600 else txt_ln_corr
-                ejemplos_cambios += f"--- CAMBIO EN LINKEDIN ---\n[ORIGINAL IA]: {examples_txt}\n[CORREGIDO POR RODRIGO]: {examples_corr}\n\n"
-            if hubo_cambio_ig:
-                examples_txt_ig = txt_ig_orig[:600] + "..." if len(txt_ig_orig) > 600 else txt_ig_orig
-                examples_corr_ig = txt_ig_corr[:600] + "..." if len(txt_ig_corr) > 600 else txt_ig_corr
-                ejemplos_cambios += f"--- CAMBIO EN INSTAGRAM ---\n[ORIGINAL IA]: {examples_txt_ig}\n[CORREGIDO POR RODRIGO]: {examples_corr_ig}\n\n"
-
-            prompt_analisis = f"""
-Eres un ingeniero de prompts y experto en copywriting. Tu tarea es analizar cómo Rodrigo Borgia corrige los textos de la IA para extraer sus reglas de estilo implícitas.
-
-Cambios realizados por Rodrigo:
-{ejemplos_cambios}
-
-REGLAS DE APRENDIZAJE DINÁMICO ACTUALES:
-{json.dumps(brain_data["aprendizaje_dinamico"], ensure_ascii=False, indent=2)}
-
-TAREA:
-1. Deduce qué regla de estilo, tono, vocabulario o estructura aplicó Rodrigo al corregir el texto.
-2. Compara esta nueva regla con las actuales. Si la regla ya está cubierta o es redundante, IGNÓRALA.
-3. Si es nueva, redáctala de forma concisa (máximo 2 frases) en formato imperativo (ej: "Evita usar la palabra 'x' y reemplázala por 'y'", "No uses introducciones corporativas ni saludos formales").
-
-Responde ÚNICAMENTE con un array JSON de strings con las NUEVAS reglas descubiertas (si no hay ninguna nueva, devuelve un array vacío []). Ejemplo de salida:
-["Regla nueva 1"]
-"""
-
-            try:
-                response = openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    messages=[{"role": "user", "content": prompt_analisis}],
-                    temperature=0.3,
-                )
-                
-                respuesta_raw = response.choices[0].message.content.strip()
-                if respuesta_raw.startswith("```json"):
-                    respuesta_raw = respuesta_raw.replace("
-```json", "").replace("```", "").strip()
-                elif respuesta_raw.startswith("```"):
-                    respuesta_raw = respuesta_raw.replace("
-```", "").strip()
-                    
-                nuevas_reglas = json.loads(respuesta_raw)
-                
-                if isinstance(nuevas_reglas, list):
-                    for regla in nuevas_reglas:
-                        if regla not in brain_data["aprendizaje_dinamico"]:
-                            brain_data["aprendizaje_dinamico"].append(regla)
-                            
-                processed_count += 1
-                
-                if "aprendizaje_procesado" in headers:
-                    col_idx = headers.index("aprendizaje_procesado") + 1
-                    sheet_logger._worksheet.update_cell(idx, col_idx, "SÍ")
-
-            except Exception as e:
-                logger.error(f"❌ Error analizando estilo en fila {idx}: {e}")
-                continue
-
-        # 3. Guardar el archivo consolidado final actualizando metadatos
-        if processed_count > 0:
-            if "meta" not in brain_data or not isinstance(brain_data["meta"], dict):
-                brain_data["meta"] = {}
-            brain_data["meta"]["last_updated"] = datetime.utcnow().isoformat() + "Z"
-            
-            with open(json_brain_path, "w", encoding="utf-8") as f:
-                json.dump(brain_data, f, indent=2, ensure_ascii=False)
-
-        return {
-            "status": "success",
-            "message": f"Se analizaron {processed_count} filas con correcciones. Las reglas fueron consolidadas en 'aprendizaje_dinamico' dentro de instrucciones_evolutivas.json."
-        }
-
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
@@ -502,7 +364,167 @@ def tiktok_verification():
 
 
 # ============================================================================
-# ENDPOINTS DE TESTEO Y VERIFICACIÓN MANUAL
+# CEREBRO Y APRENDIZAJE AUTOMÁTICO (CORREGIDO)
+# ============================================================================
+
+
+@app.post("/api/sync-brain/batch")
+def sync_brain_batch():
+    """
+    Sincronización Inteligente: Compara lo generado contra tus correcciones manuales,
+    extrae reglas de estilo y las consolida en el formato nativo de instrucciones_evolutivas.json.
+    """
+    try:
+        sheet_logger = SheetLogger(settings.sheet_credentials_path, settings.sheet_id)
+        records = sheet_logger._worksheet.get_all_records()
+        headers = [h.lower() for h in sheet_logger._worksheet.row_values(1)]
+
+        json_brain_path = os.path.join(
+            os.path.dirname(__file__), "instrucciones_evolutivas.json"
+        )
+
+        # 1. Cargar el JSON respetando su estructura nativa
+        brain_data = {
+            "version": 1,
+            "reglas_fijas": {},
+            "aprendizaje_dinamico": [],
+            "meta": {},
+        }
+
+        if os.path.exists(json_brain_path):
+            try:
+                with open(json_brain_path, "r", encoding="utf-8") as f:
+                    loaded_data = json.load(f)
+                    if isinstance(loaded_data, dict):
+                        brain_data.update(loaded_data)
+            except Exception as json_err:
+                logger.error(f"⚠️ Error leyendo JSON existente: {json_err}")
+
+        if "aprendizaje_dinamico" not in brain_data or not isinstance(
+            brain_data["aprendizaje_dinamico"], list
+        ):
+            brain_data["aprendizaje_dinamico"] = []
+
+        openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+        processed_count = 0
+
+        # 2. Buscar filas con correcciones humanas no procesadas
+        for idx, row in enumerate(records, start=2):
+            procesado = (
+                str(
+                    row.get(
+                        "aprendizaje_procesado", row.get("Aprendizaje_Procesado", "")
+                    )
+                )
+                .strip()
+                .lower()
+            )
+
+            if procesado in ["sí", "si", "true"]:
+                continue
+
+            txt_ln_orig = str(row.get("linkedin", "")).strip()
+            txt_ln_corr = str(row.get("linkedin_corregido", "")).strip()
+            txt_ig_orig = str(row.get("instagram", "")).strip()
+            txt_ig_corr = str(row.get("instagram_corregido", "")).strip()
+
+            hubo_cambio_ln = bool(txt_ln_corr and (txt_ln_orig != txt_ln_corr))
+            hubo_cambio_ig = bool(txt_ig_corr and (txt_ig_orig != txt_ig_corr))
+
+            if not hubo_cambio_ln and not hubo_cambio_ig:
+                if "aprendizaje_procesado" in headers:
+                    col_idx = headers.index("aprendizaje_procesado") + 1
+                    sheet_logger._worksheet.update_cell(idx, col_idx, "SÍ")
+                continue
+
+            ejemplos_cambios = ""
+            if hubo_cambio_ln:
+                ex_orig = (
+                    txt_ln_orig[:500] + "..." if len(txt_ln_orig) > 500 else txt_ln_orig
+                )
+                ex_corr = (
+                    txt_ln_corr[:500] + "..." if len(txt_ln_corr) > 500 else txt_ln_corr
+                )
+                ejemplos_cambios += f"--- LINKEDIN ---\n[ORIGINAL]: {ex_orig}\n[CORREGIDO]: {ex_corr}\n\n"
+            if hubo_cambio_ig:
+                ex_orig_ig = (
+                    txt_ig_orig[:500] + "..." if len(txt_ig_orig) > 500 else txt_ig_orig
+                )
+                ex_corr_ig = (
+                    txt_ig_corr[:500] + "..." if len(txt_ig_corr) > 500 else txt_ig_corr
+                )
+                ejemplos_cambios += f"--- INSTAGRAM ---\n[ORIGINAL]: {ex_orig_ig}\n[CORREGIDO]: {ex_corr_ig}\n\n"
+
+            prompt_analisis = f"""
+Eres un ingeniero de prompts. Analiza cómo Rodrigo Borgia corrige los textos de la IA para extraer sus reglas de estilo implícitas.
+
+Cambios realizados:
+{ejemplos_cambios}
+
+REGLAS DE APRENDIZAJE DINÁMICO ACTUALES:
+{json.dumps(brain_data["aprendizaje_dinamico"], ensure_ascii=False, indent=2)}
+
+TAREA:
+1. Deduce qué regla de estilo, tono o vocabulario aplicó Rodrigo al corregir el texto.
+2. Compara esta nueva regla con las actuales. Si la regla ya está cubierta, IGNÓRALA.
+3. Si es nueva, redáctala de forma concisa (máximo 2 frases) en formato imperativo (ej: "Evita usar la palabra 'x'", "No uses saludos formales").
+
+Responde ÚNICAMENTE con un array JSON de strings con las NUEVAS reglas descubiertas. Ejemplo:
+["Regla nueva 1"]
+"""
+
+            try:
+                response = openai_client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": prompt_analisis}],
+                    temperature=0.3,
+                )
+
+                respuesta_raw = response.choices[0].message.content.strip()
+                if respuesta_raw.startswith("```json"):
+                    respuesta_raw = (
+                        respuesta_raw.replace("```json", "").replace("```", "").strip()
+                    )
+                elif respuesta_raw.startswith("```"):
+                    respuesta_raw = respuesta_raw.replace("```", "").strip()
+
+                nuevas_reglas = json.loads(respuesta_raw)
+
+                if isinstance(nuevas_reglas, list):
+                    for regla in nuevas_reglas:
+                        if regla not in brain_data["aprendizaje_dinamico"]:
+                            brain_data["aprendizaje_dinamico"].append(regla)
+
+                processed_count += 1
+
+                if "aprendizaje_procesado" in headers:
+                    col_idx = headers.index("aprendizaje_procesado") + 1
+                    sheet_logger._worksheet.update_cell(idx, col_idx, "SÍ")
+
+            except Exception as e:
+                logger.error(f"❌ Error analizando estilo en fila {idx}: {e}")
+                continue
+
+        if processed_count > 0:
+            if "meta" not in brain_data or not isinstance(brain_data["meta"], dict):
+                brain_data["meta"] = {}
+            brain_data["meta"]["last_updated"] = datetime.utcnow().isoformat() + "Z"
+
+            with open(json_brain_path, "w", encoding="utf-8") as f:
+                json.dump(brain_data, f, indent=2, ensure_ascii=False)
+
+        return {
+            "status": "success",
+            "message": f"Se analizaron {processed_count} filas con correcciones de Rodrigo de forma exitosa.",
+        }
+
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# ENDPOINTS DE TESTEO MANUAL
 # ============================================================================
 
 
